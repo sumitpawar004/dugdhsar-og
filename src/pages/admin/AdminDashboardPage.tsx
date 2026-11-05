@@ -61,7 +61,18 @@ export const AdminDashboardPage: React.FC = () => {
     updateProductStock, 
     updateOrderStatus, 
     toggleProductPublish,
-    recordAuditLog
+    recordAuditLog,
+    addNewProduct,
+    updateProduct,
+    deleteProduct,
+    updateOrder,
+    addNewDeliveryZone,
+    updateDeliveryZone,
+    deleteDeliveryZone,
+    websiteAnnouncement,
+    updateWebsiteAnnouncement,
+    siteSettings,
+    updateSiteSettings
   } = useStore();
 
   const { path, navigate } = useRouter();
@@ -183,20 +194,62 @@ export const AdminDashboardPage: React.FC = () => {
     { id: 'STF-05', name: 'Manoj Verma', email: 'dealer.manager@dugdhsar.in', role: 'B2B Dealer Manager', status: 'Active', lastActive: 'Yesterday' }
   ]);
 
-  // Content Announcement State
-  const [bannerNotice, setBannerNotice] = useState('Dawn dispatch completed punctually. Bottles delivered across Seoni before 11:00 AM.');
+  // Content Announcement State (Live sync with website top announcement)
+  const [bannerNotice, setBannerNotice] = useState(websiteAnnouncement || 'Dawn dispatch completed punctually. Bottles delivered across Seoni before 11:00 AM.');
   const [isSavingContent, setIsSavingContent] = useState(false);
 
-  // Settings State
+  // Settings State (Live sync with Store Context settings)
   const [dairySettings, setDairySettings] = useState({
-    fssaiLicense: '10020000000000',
-    gstin: '23AAAAA0000A1Z5',
-    morningCutoff: '08:00 PM (Previous Night)',
+    fssaiLicense: siteSettings.fssaiNumber || '10020000000000',
+    gstin: siteSettings.gstin || '23AAAAA0000A1Z5',
+    morningCutoff: siteSettings.morningHours || '5:00 AM – 10:00 AM',
     tempMinC: 2.0,
     tempMaxC: 4.0,
-    shopAddress: '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
-    whatsappSupport: '+91 7067672604',
-    supportEmail: 'support@dugdhsar.in'
+    shopAddress: siteSettings.address || '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
+    whatsappSupport: siteSettings.whatsapp || '+91 7067672604',
+    supportEmail: siteSettings.email || 'support@dugdhsar.in'
+  });
+
+  // Product Add & Edit Modals State
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [newProductForm, setNewProductForm] = useState({
+    name: '',
+    categorySlug: 'milk',
+    sizeLabel: '1 Litre Glass Bottle',
+    priceRupees: 170,
+    stockCount: 50,
+    description: 'Pure certified A2 Gir cow dairy delivered fresh under cold-chain standards in Seoni.',
+    badge: 'Fresh Dawn Milking'
+  });
+
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editProductForm, setEditProductForm] = useState({
+    name: '',
+    categorySlug: 'milk',
+    sizeLabel: '',
+    priceRupees: 0,
+    stockCount: 0,
+    description: '',
+    badge: '',
+    isPublished: true,
+    featured: false
+  });
+
+  // Order Inspector & Manage Modal State
+  const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
+  const [orderTrackingNum, setOrderTrackingNum] = useState('');
+  const [orderDeliverySlot, setOrderDeliverySlot] = useState('');
+  const [orderVehicleVan, setOrderVehicleVan] = useState('Cold Van MP-28-D-1964');
+
+  // Delivery Zone Add Modal State
+  const [isAddZoneOpen, setIsAddZoneOpen] = useState(false);
+  const [newZoneForm, setNewZoneForm] = useState({
+    zoneName: '',
+    city: 'Seoni',
+    pincode: '',
+    minOrderRupees: 200,
+    deliveryFeeRupees: 40,
+    estimatedHours: 2
   });
 
   // Audit Logs Filter
@@ -529,48 +582,133 @@ export const AdminDashboardPage: React.FC = () => {
             {/* 2. MANAGE PRODUCTS (/admin/products) */}
             {activeSection === 'products' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-serif text-xl text-white font-semibold">Dairy Provisions Catalog ({products.length})</h2>
-                  <span className="text-xs text-[#C2A36C] font-mono">Strict Integer Paise Architecture</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#3A5243]">
+                  <div>
+                    <h2 className="font-serif text-xl text-white font-semibold">Dairy Provisions Catalog ({products.length})</h2>
+                    <p className="text-xs text-[#F3EDE1]/70">Total control: add products, adjust live prices, stock levels & status</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddProductOpen(true)}
+                      className="px-4 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>+ Add New Product</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="border border-[#3A5243] rounded-2xl overflow-hidden divide-y divide-[#3A5243]">
                   {products.map(p => {
-                    const v = p.variants[0];
+                    const v = p.variants[0] || { sizeLabel: '1 Litre', pricePaise: 17000, stockCount: 50, id: 'v-1' };
                     return (
-                      <div key={p.id} className="p-4 bg-[#1F2F26] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
+                      <div key={p.id} className="p-4 bg-[#1F2F26] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-white text-sm">{p.name}</span>
+                            <span className="text-[11px] text-[#C2A36C] font-serif">({p.hindiName})</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                               p.isPublished ? 'bg-emerald-950 border border-emerald-600 text-emerald-300' : 'bg-rose-950 border border-rose-800 text-rose-300'
                             }`}>
-                              {p.isPublished ? 'Active' : 'Unpublished'}
+                              {p.isPublished ? 'Live on Store' : 'Unpublished'}
                             </span>
+                            {p.featured && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-950 border border-amber-600 text-amber-300">
+                                Featured
+                              </span>
+                            )}
                           </div>
-                          <p className="text-[#F3EDE1]/60 text-[11px]">{p.categorySlug.toUpperCase()} · Standard Size: {v.sizeLabel}</p>
-                          <div className="flex items-center gap-3 font-mono">
-                            <span className="text-[#C2A36C] font-bold">MRP: {formatPaise(v.pricePaise)}</span>
-                            <span className="text-[#F3EDE1]/75">Stock: <strong>{v.stockCount}</strong></span>
+                          
+                          <p className="text-[#F3EDE1]/70 text-[11px]">
+                            Category: <strong className="text-white uppercase">{p.categorySlug}</strong> · Standard Size: <strong className="text-white">{v.sizeLabel}</strong>
+                          </p>
+
+                          <div className="flex items-center gap-4 font-mono">
+                            <span className="text-[#C2A36C] font-bold text-sm">Selling Price: {formatPaise(v.pricePaise)}</span>
+                            <span className="text-[#F3EDE1]/85">On-Hand Stock: <strong className={v.stockCount < 15 ? 'text-amber-400' : 'text-emerald-400'}>{v.stockCount} units</strong></span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        {/* Control Actions */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Quick Stock Controls */}
+                          <div className="flex items-center bg-[#263D30] border border-[#3A5243] rounded-xl px-1.5 py-1">
+                            <span className="text-[10px] text-[#F3EDE1]/60 px-1 font-semibold">Stock:</span>
+                            <button
+                              type="button"
+                              onClick={() => updateProductStock(v.id, -10, 'Admin manual stock deduct')}
+                              className="px-1.5 py-0.5 hover:bg-[#3A5243] rounded text-rose-300 font-bold font-mono text-[11px] cursor-pointer"
+                              title="Deduct 10 units"
+                            >
+                              -10
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateProductStock(v.id, +10, 'Admin manual stock add')}
+                              className="px-1.5 py-0.5 hover:bg-[#3A5243] rounded text-emerald-300 font-bold font-mono text-[11px] cursor-pointer"
+                              title="Add 10 units"
+                            >
+                              +10
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateProductStock(v.id, +50, 'Admin batch addition')}
+                              className="px-1.5 py-0.5 hover:bg-[#3A5243] rounded text-emerald-300 font-bold font-mono text-[11px] cursor-pointer"
+                              title="Add 50 units"
+                            >
+                              +50
+                            </button>
+                          </div>
+
+                          {/* Edit Button */}
                           <button
+                            type="button"
                             onClick={() => {
-                              toggleProductPublish(p.id);
-                              recordAuditLog('PRODUCT_PUBLISH_TOGGLED', 'PRODUCTS', p.id, {
-                                previousState: p.isPublished,
-                                adminRole: activeStaffRole
+                              setEditingProduct(p);
+                              setEditProductForm({
+                                name: p.name,
+                                categorySlug: p.categorySlug,
+                                sizeLabel: v.sizeLabel,
+                                priceRupees: v.pricePaise / 100,
+                                stockCount: v.stockCount,
+                                description: p.description,
+                                badge: p.badge || '',
+                                isPublished: p.isPublished,
+                                featured: p.featured || false
                               });
                             }}
+                            className="px-3 py-1.5 bg-[#263D30] hover:bg-[#3A5243] border border-[#3A5243] text-white rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-[#C2A36C]" />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* Publish/Unpublish */}
+                          <button
+                            type="button"
+                            onClick={() => toggleProductPublish(p.id)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                               p.isPublished 
-                                ? 'bg-rose-950/60 text-rose-300 border border-rose-800 hover:bg-rose-900/60'
+                                ? 'bg-amber-950/60 text-amber-300 border border-amber-800 hover:bg-amber-900/60'
                                 : 'bg-emerald-950/60 text-emerald-300 border border-emerald-700 hover:bg-emerald-900/60'
                             }`}
                           >
                             {p.isPublished ? 'Unpublish' : 'Publish'}
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Are you sure you want to delete "${p.name}"? This cannot be undone.`)) {
+                                deleteProduct(p.id);
+                              }
+                            }}
+                            className="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-950 border border-rose-800 text-rose-300 rounded-lg text-xs font-semibold cursor-pointer"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -631,19 +769,34 @@ export const AdminDashboardPage: React.FC = () => {
             {/* 4. ORDERS MANAGEMENT (/admin/orders) */}
             {activeSection === 'orders' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-serif text-xl text-white font-semibold">Active Orders & Dawn Dispatch ({orders.length})</h2>
-                  <span className="text-xs text-[#C2A36C]">Morning Slot: 05:30 AM – 11:00 AM</span>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#3A5243]">
+                  <div>
+                    <h2 className="font-serif text-xl text-white font-semibold">Active Orders & Cold-Chain Dispatch ({orders.length})</h2>
+                    <p className="text-xs text-[#F3EDE1]/70">Full dispatch control: driver assignment, live status updates & WhatsApp routing</p>
+                  </div>
+                  <span className="text-xs text-[#C2A36C] font-semibold bg-[#263D30] px-3 py-1 rounded-lg border border-[#3A5243]">
+                    Morning Slot: 05:30 AM – 11:00 AM
+                  </span>
                 </div>
 
                 <div className="space-y-3">
                   {orders.map(o => (
                     <div key={o.id} className="p-4 bg-[#1F2F26] rounded-2xl border border-[#3A5243] space-y-3 text-xs">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#3A5243]">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono font-bold text-white text-sm">{o.orderNumber}</span>
-                          <span className="text-[#F3EDE1]/70">· {o.customerName} ({o.customerPhone})</span>
+                          <span className="text-[#F3EDE1]/80 font-semibold">· {o.customerName}</span>
+                          <span className="text-[11px] text-[#C2A36C]">({o.customerPhone})</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            o.status === 'delivered' ? 'bg-emerald-950 text-emerald-300 border border-emerald-600' :
+                            o.status === 'dispatched' ? 'bg-amber-950 text-amber-300 border border-amber-600' :
+                            o.status === 'cancelled' ? 'bg-rose-950 text-rose-300 border border-rose-600' :
+                            'bg-blue-950 text-blue-300 border border-blue-600'
+                          }`}>
+                            {o.status === 'dispatched' ? 'Out for Delivery' : o.status.replace(/_/g, ' ')}
+                          </span>
                         </div>
+                        
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-bold text-[#C2A36C] text-sm">{formatPaise(o.totalPaise)}</span>
                           <select
@@ -657,23 +810,50 @@ export const AdminDashboardPage: React.FC = () => {
                                 adminRole: activeStaffRole
                               });
                             }}
-                            className="bg-[#263D30] border border-[#3A5243] text-white px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer"
+                            className="bg-[#263D30] border border-[#3A5243] text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
                           >
                             <option value="confirmed">Confirmed</option>
-                            <option value="processing">Processing</option>
-                            <option value="out_for_delivery">Out for Delivery</option>
-                            <option value="delivered">Delivered</option>
+                            <option value="processing">Processing (Milking & Bottling)</option>
+                            <option value="dispatched">Out for Delivery (Cold Van)</option>
+                            <option value="delivered">Delivered to Doorstep</option>
                             <option value="cancelled">Cancelled</option>
                           </select>
                         </div>
                       </div>
 
                       <div className="text-[11px] text-[#F3EDE1]/85">
-                        Items: {o.items.map(i => `${i.productNameSnapshot} (${i.sizeSnapshot}) × ${i.quantity}`).join(', ')}
+                        <strong className="text-white">Provisions: </strong>
+                        {o.items.map(i => `${i.productNameSnapshot} (${i.sizeSnapshot}) × ${i.quantity}`).join(', ')}
                       </div>
+
                       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#C2A36C] pt-1">
-                        <span>Slot: {o.deliverySlot} · Destination: {o.deliveryPincode}</span>
-                        <span className="font-mono text-white">Tracking: {o.trackingNumber || 'Pending'}</span>
+                        <span>Slot: <strong className="text-white">{o.deliverySlot}</strong> · Pincode: <strong className="text-white">{o.deliveryPincode}</strong></span>
+                        <span className="font-mono text-white">Tracking: <strong>{o.trackingNumber || 'DS-COLD-SEONI-101'}</strong></span>
+                      </div>
+
+                      {/* Super Admin Quick Actions */}
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-[#3A5243]/60">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setInspectingOrder(o);
+                            setOrderTrackingNum(o.trackingNumber || `DS-COLD-SEONI-${Math.floor(100 + Math.random() * 900)}`);
+                            setOrderDeliverySlot(o.deliverySlot || '05:30 AM - 11:00 AM');
+                          }}
+                          className="px-3 py-1.5 bg-[#263D30] hover:bg-[#3A5243] text-[#FAF6EE] rounded-lg text-xs font-semibold flex items-center gap-1 border border-[#3A5243] cursor-pointer"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-[#C2A36C]" />
+                          <span>Inspect & Manage</span>
+                        </button>
+
+                        <a
+                          href={`https://wa.me/${o.customerPhone.replace(/[^0-9]/g, '')}?text=Namaste%20${encodeURIComponent(o.customerName)}%2C%20your%20DUGDHSAR%20dairy%20order%20(${o.orderNumber})%20is%20${o.status === 'dispatched' ? 'out%20for%20cold-chain%20delivery%20in%20insulated%20van' : 'confirmed%20for%20morning%20dawn%20delivery'}.%20Tracking%3A%20${encodeURIComponent(o.trackingNumber || 'DS-COLD-SEONI-101')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>WhatsApp Customer</span>
+                        </a>
                       </div>
                     </div>
                   ))}
@@ -939,24 +1119,65 @@ export const AdminDashboardPage: React.FC = () => {
             {/* 9. DELIVERY MANAGEMENT (/admin/deliveries) */}
             {activeSection === 'deliveries' && (
               <div className="space-y-6">
-                <div>
-                  <h2 className="font-serif text-xl text-white font-semibold">Active Cold-Chain Delivery Pincodes & Vans</h2>
-                  <p className="text-xs text-[#F3EDE1]/70">Seoni city morning (05:30 AM – 11:00 AM) and evening routes</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#3A5243]">
+                  <div>
+                    <h2 className="font-serif text-xl text-white font-semibold">Active Cold-Chain Delivery Pincodes & Zones ({deliveryZones.length})</h2>
+                    <p className="text-xs text-[#F3EDE1]/70">Add and manage serviceable pincodes, minimum order thresholds & cold van corridors</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddZoneOpen(true)}
+                    className="px-4 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Delivery Pincode / Zone</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   {deliveryZones.map(zone => (
                     <div key={zone.id} className="p-4.5 bg-[#1F2F26] rounded-2xl border border-[#3A5243] space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-white text-sm">{zone.zoneName}</span>
-                        <span className="font-mono text-[#C2A36C] font-bold text-xs bg-[#263D30] px-2 py-0.5 rounded">
-                          {zone.pincode}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white text-sm">{zone.zoneName}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            zone.isActive !== false ? 'bg-emerald-950 text-emerald-300 border border-emerald-600' : 'bg-rose-950 text-rose-300 border border-rose-800'
+                          }`}>
+                            {zone.isActive !== false ? 'Active' : 'Disabled'}
+                          </span>
+                        </div>
+                        <span className="font-mono text-[#C2A36C] font-bold text-xs bg-[#263D30] px-2 py-0.5 rounded border border-[#3A5243]">
+                          PIN: {zone.pincode}
                         </span>
                       </div>
-                      <p className="text-[#F3EDE1]/70">{zone.city}, {zone.state}</p>
-                      <div className="pt-2 border-t border-[#3A5243]/60 flex items-center justify-between text-[11px]">
+                      
+                      <p className="text-[#F3EDE1]/70">{zone.city}, {zone.state} · Hub: {zone.hubAddress || 'Seoni Hub'}</p>
+                      
+                      <div className="pt-2 border-t border-[#3A5243]/60 flex flex-wrap items-center justify-between text-[11px] gap-2">
                         <span className="text-emerald-400 font-semibold">Free Delivery Above {formatPaise(zone.minOrderPaise)}</span>
-                        <span className="text-[#C2A36C]">Insulated Route ✓</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateDeliveryZone(zone.id, { isActive: zone.isActive === false ? true : false });
+                            }}
+                            className="px-2.5 py-1 bg-[#263D30] hover:bg-[#3A5243] border border-[#3A5243] text-white rounded text-[10px] font-semibold cursor-pointer"
+                          >
+                            {zone.isActive === false ? 'Enable' : 'Disable'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Remove delivery zone ${zone.zoneName} (${zone.pincode})?`)) {
+                                deleteDeliveryZone(zone.id);
+                              }
+                            }}
+                            className="p-1 text-rose-400 hover:text-rose-200 cursor-pointer"
+                            title="Delete Zone"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1190,18 +1411,19 @@ export const AdminDashboardPage: React.FC = () => {
                   <button
                     onClick={() => {
                       setIsSavingContent(true);
+                      updateWebsiteAnnouncement(bannerNotice);
                       recordAuditLog('WEBSITE_CONTENT_UPDATED', 'ANNOUNCEMENT_BANNER', 'TOP_BANNER', {
                         text: bannerNotice,
                         adminRole: activeStaffRole
                       });
                       setTimeout(() => {
                         setIsSavingContent(false);
-                        alert('Banner broadcast content updated & logged in security audit.');
-                      }, 500);
+                        alert('Banner broadcast content updated live across entire website and saved!');
+                      }, 400);
                     }}
                     className="px-5 py-2.5 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl text-xs transition-colors cursor-pointer"
                   >
-                    {isSavingContent ? 'Saving...' : 'Publish Content Update & Log Audit'}
+                    {isSavingContent ? 'Publishing Live...' : 'Publish Content Live & Update Header'}
                   </button>
                 </div>
               </div>
@@ -1319,15 +1541,23 @@ export const AdminDashboardPage: React.FC = () => {
 
                   <button
                     onClick={() => {
+                      updateSiteSettings({
+                        fssaiNumber: dairySettings.fssaiLicense,
+                        gstin: dairySettings.gstin,
+                        morningHours: dairySettings.morningCutoff,
+                        address: dairySettings.shopAddress,
+                        whatsapp: dairySettings.whatsappSupport,
+                        email: dairySettings.supportEmail
+                      });
                       recordAuditLog('SETTINGS_UPDATED', 'SYSTEM_CONFIG', 'DAIRY_PARAMETERS', {
                         dairySettings,
                         adminRole: activeStaffRole
                       });
-                      alert('Dairy operations settings saved & logged.');
+                      alert('Dairy operations settings saved live & synchronized with website footer, navbar and receipts!');
                     }}
                     className="px-5 py-2.5 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold text-xs rounded-xl cursor-pointer"
                   >
-                    Save Operational Settings & Log Audit
+                    Save Operational Settings Live
                   </button>
                 </div>
               </div>
@@ -1456,6 +1686,576 @@ export const AdminDashboardPage: React.FC = () => {
 
           </div>
         </div>
+
+        {/* MODAL 1: ADD NEW PRODUCT MODAL */}
+        {isAddProductOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-[#3A5243]">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#FAF6EE] flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-[#C2A36C]" />
+                    <span>Add New Dairy Provision</span>
+                  </h3>
+                  <p className="text-[11px] text-[#F3EDE1]/70">Publish new SKU to Dugdhsar digital storefront</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddProductOpen(false)}
+                  className="p-1 text-[#F3EDE1]/60 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newProductForm.name.trim()) return;
+                  addNewProduct({
+                    name: newProductForm.name.trim(),
+                    categorySlug: newProductForm.categorySlug,
+                    sizeLabel: newProductForm.sizeLabel,
+                    pricePaise: Math.round(Number(newProductForm.priceRupees) * 100),
+                    description: newProductForm.description,
+                    badge: newProductForm.badge,
+                    variants: [{
+                      id: `var-${Date.now()}`,
+                      productId: '',
+                      sku: `DS-${newProductForm.categorySlug.toUpperCase()}-${Date.now().toString().slice(-4)}`,
+                      sizeLabel: newProductForm.sizeLabel,
+                      pricePaise: Math.round(Number(newProductForm.priceRupees) * 100),
+                      compareAtPricePaise: Math.round(Number(newProductForm.priceRupees) * 115),
+                      inStock: true,
+                      stockCount: Number(newProductForm.stockCount) || 50,
+                      isSubscriptionEligible: true
+                    }]
+                  });
+                  setIsAddProductOpen(false);
+                  setNewProductForm({
+                    name: '',
+                    categorySlug: 'milk',
+                    sizeLabel: '1 Litre Glass Bottle',
+                    priceRupees: 170,
+                    stockCount: 50,
+                    description: 'Pure certified A2 Gir cow dairy delivered fresh under cold-chain standards in Seoni.',
+                    badge: 'Fresh Dawn Milking'
+                  });
+                }}
+                className="space-y-3.5 text-xs"
+              >
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Product Title *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. DUGDHSAR Fresh A2 Desi Cow Milk"
+                    value={newProductForm.name}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Category *</label>
+                    <select
+                      value={newProductForm.categorySlug}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, categorySlug: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C] capitalize"
+                    >
+                      <option value="milk">Milk (Fresh A2 Desi Cow)</option>
+                      <option value="ghee">Ghee (Vedic Bilona)</option>
+                      <option value="paneer">Paneer (Fresh Malai)</option>
+                      <option value="curd">Curd (Clay-Pot Dahi)</option>
+                      <option value="butter">Butter (White Makhan)</option>
+                      <option value="khoya-mawa">Khoya & Mawa</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Standard Size / Unit *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 1 Litre Glass Bottle or 500 GM"
+                      value={newProductForm.sizeLabel}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, sizeLabel: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Selling Price (₹) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={10}
+                      value={newProductForm.priceRupees}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, priceRupees: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Initial Stock (Units) *</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={newProductForm.stockCount}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, stockCount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Badge / Tagline</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Fresh Dawn Milking or Vedic Bilona"
+                    value={newProductForm.badge}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, badge: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Description</label>
+                  <textarea
+                    rows={2}
+                    value={newProductForm.description}
+                    onChange={(e) => setNewProductForm({ ...newProductForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#3A5243]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddProductOpen(false)}
+                    className="px-4 py-2 bg-[#1F2F26] hover:bg-[#3A5243] text-[#F3EDE1]/75 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Publish Product Live
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 2: EDIT PRODUCT MODAL */}
+        {editingProduct && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-[#3A5243]">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#FAF6EE] flex items-center gap-2">
+                    <Edit className="w-5 h-5 text-[#C2A36C]" />
+                    <span>Edit Provision: {editingProduct.name}</span>
+                  </h3>
+                  <p className="text-[11px] text-[#F3EDE1]/70">Modify product details, selling price, or inventory count</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="p-1 text-[#F3EDE1]/60 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const updatedVariants = editingProduct.variants.map((v, i) => {
+                    if (i === 0) {
+                      return {
+                        ...v,
+                        sizeLabel: editProductForm.sizeLabel || v.sizeLabel,
+                        pricePaise: Math.round(Number(editProductForm.priceRupees) * 100),
+                        stockCount: Number(editProductForm.stockCount)
+                      };
+                    }
+                    return v;
+                  });
+
+                  updateProduct(editingProduct.id, {
+                    name: editProductForm.name,
+                    categorySlug: editProductForm.categorySlug,
+                    description: editProductForm.description,
+                    badge: editProductForm.badge,
+                    isPublished: editProductForm.isPublished,
+                    featured: editProductForm.featured,
+                    variants: updatedVariants
+                  });
+
+                  setEditingProduct(null);
+                }}
+                className="space-y-3.5 text-xs"
+              >
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Product Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={editProductForm.name}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Category</label>
+                    <select
+                      value={editProductForm.categorySlug}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, categorySlug: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C] capitalize"
+                    >
+                      <option value="milk">Milk</option>
+                      <option value="ghee">Ghee</option>
+                      <option value="paneer">Paneer</option>
+                      <option value="curd">Curd</option>
+                      <option value="butter">Butter</option>
+                      <option value="khoya-mawa">Khoya & Mawa</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Size / Volume Label</label>
+                    <input
+                      type="text"
+                      required
+                      value={editProductForm.sizeLabel}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, sizeLabel: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Selling Price (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      min={10}
+                      value={editProductForm.priceRupees}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, priceRupees: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">On-Hand Stock (Units)</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={editProductForm.stockCount}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, stockCount: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 py-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.isPublished}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, isPublished: e.target.checked })}
+                      className="w-4 h-4 accent-[#C2A36C] rounded"
+                    />
+                    <span className="text-[11px] font-semibold">Live & Active on Store</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.featured}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, featured: e.target.checked })}
+                      className="w-4 h-4 accent-[#C2A36C] rounded"
+                    />
+                    <span className="text-[11px] font-semibold">Featured on Homepage</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#3A5243]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProduct(null)}
+                    className="px-4 py-2 bg-[#1F2F26] hover:bg-[#3A5243] text-[#F3EDE1]/75 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Save Changes Live
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 3: INSPECT & MANAGE ORDER MODAL */}
+        {inspectingOrder && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-[#3A5243]">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#FAF6EE] flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-[#C2A36C]" />
+                    <span>Manage Dispatch: {inspectingOrder.orderNumber}</span>
+                  </h3>
+                  <p className="text-[11px] text-[#F3EDE1]/70">{inspectingOrder.customerName} · {inspectingOrder.customerPhone}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInspectingOrder(null)}
+                  className="p-1 text-[#F3EDE1]/60 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Order Items Preview */}
+              <div className="p-3 bg-[#1F2F26] rounded-xl border border-[#3A5243] text-xs space-y-1.5">
+                <span className="text-[10px] uppercase font-bold text-[#C2A36C] block">Provisions Snapshot:</span>
+                {inspectingOrder.items.map(i => (
+                  <div key={i.id} className="flex justify-between text-[#F3EDE1]/85">
+                    <span>{i.productNameSnapshot} ({i.sizeSnapshot}) × {i.quantity}</span>
+                    <span className="font-mono font-bold text-white">{formatPaise(i.totalPaise)}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-[#3A5243] flex justify-between font-bold text-sm">
+                  <span>Total Due:</span>
+                  <span className="text-[#C2A36C] font-mono">{formatPaise(inspectingOrder.totalPaise)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Cold-Chain Status</label>
+                  <select
+                    value={inspectingOrder.status}
+                    onChange={(e) => {
+                      const newStatus = e.target.value as any;
+                      updateOrderStatus(inspectingOrder.id, newStatus);
+                      setInspectingOrder({ ...inspectingOrder, status: newStatus });
+                    }}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-semibold outline-none focus:border-[#C2A36C]"
+                  >
+                    <option value="confirmed">Confirmed</option>
+                    <option value="processing">Processing (Milking & Bottling)</option>
+                    <option value="dispatched">Out for Delivery (Cold Van)</option>
+                    <option value="delivered">Delivered to Doorstep</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Cold Tracking ID</label>
+                    <input
+                      type="text"
+                      value={orderTrackingNum}
+                      onChange={(e) => setOrderTrackingNum(e.target.value)}
+                      placeholder="e.g. DS-COLD-SEONI-101"
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Assigned Vehicle / Van</label>
+                    <input
+                      type="text"
+                      value={orderVehicleVan}
+                      onChange={(e) => setOrderVehicleVan(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Delivery Slot</label>
+                  <input
+                    type="text"
+                    value={orderDeliverySlot}
+                    onChange={(e) => setOrderDeliverySlot(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-[#3A5243]">
+                  <a
+                    href={`https://wa.me/${inspectingOrder.customerPhone.replace(/[^0-9]/g, '')}?text=Namaste%20${encodeURIComponent(inspectingOrder.customerName)}%2C%20your%20DUGDHSAR%20dairy%20order%20(${inspectingOrder.orderNumber})%20is%20${inspectingOrder.status === 'dispatched' ? 'out%20for%20cold-chain%20delivery%20in%20insulated%20van' : 'confirmed%20for%20morning%20dawn%20delivery'}.%20Tracking%3A%20${encodeURIComponent(orderTrackingNum)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-4 py-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 font-bold rounded-xl text-center"
+                  >
+                    Open WhatsApp Chat
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateOrder(inspectingOrder.id, {
+                        trackingNumber: orderTrackingNum,
+                        deliverySlot: orderDeliverySlot,
+                        notes: `Assigned to ${orderVehicleVan}`
+                      });
+                      setInspectingOrder(null);
+                    }}
+                    className="w-full sm:w-auto px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Save Dispatch Record
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL 4: ADD DELIVERY ZONE MODAL */}
+        {isAddZoneOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-md w-full p-6 sm:p-8 text-white shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#3A5243]">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#FAF6EE] flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-[#C2A36C]" />
+                    <span>Add Serviceable Pincode</span>
+                  </h3>
+                  <p className="text-[11px] text-[#F3EDE1]/70">Expand cold-chain corridor in Seoni</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddZoneOpen(false)}
+                  className="p-1 text-[#F3EDE1]/60 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newZoneForm.pincode.trim() || !newZoneForm.zoneName.trim()) return;
+                  addNewDeliveryZone({
+                    zoneName: newZoneForm.zoneName.trim(),
+                    city: newZoneForm.city.trim(),
+                    pincode: newZoneForm.pincode.trim(),
+                    minOrderPaise: Math.round(Number(newZoneForm.minOrderRupees) * 100),
+                    deliveryFeePaise: Math.round(Number(newZoneForm.deliveryFeeRupees) * 100),
+                    estimatedHours: Number(newZoneForm.estimatedHours) || 2,
+                    isActive: true
+                  });
+                  setIsAddZoneOpen(false);
+                  setNewZoneForm({
+                    zoneName: '',
+                    city: 'Seoni',
+                    pincode: '',
+                    minOrderRupees: 200,
+                    deliveryFeeRupees: 40,
+                    estimatedHours: 2
+                  });
+                }}
+                className="space-y-3 text-xs"
+              >
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Zone / Locality Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Barghat Road & Sanjay Vihar"
+                    value={newZoneForm.zoneName}
+                    onChange={(e) => setNewZoneForm({ ...newZoneForm, zoneName: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">City</label>
+                    <input
+                      type="text"
+                      required
+                      value={newZoneForm.city}
+                      onChange={(e) => setNewZoneForm({ ...newZoneForm, city: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">6-Digit Pincode *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 480661"
+                      value={newZoneForm.pincode}
+                      onChange={(e) => setNewZoneForm({ ...newZoneForm, pincode: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Min Order for Free (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={newZoneForm.minOrderRupees}
+                      onChange={(e) => setNewZoneForm({ ...newZoneForm, minOrderRupees: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Standard Delivery Fee (₹)</label>
+                    <input
+                      type="number"
+                      required
+                      min={0}
+                      value={newZoneForm.deliveryFeeRupees}
+                      onChange={(e) => setNewZoneForm({ ...newZoneForm, deliveryFeeRupees: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#3A5243]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddZoneOpen(false)}
+                    className="px-4 py-2 bg-[#1F2F26] hover:bg-[#3A5243] text-[#F3EDE1]/75 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Add Delivery Zone
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

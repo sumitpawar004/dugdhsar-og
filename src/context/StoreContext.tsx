@@ -113,6 +113,30 @@ interface StoreContextType {
   recordAuditLog: (action: string, resourceType: string, resourceId: string, metadata?: Record<string, any>) => void;
   runAutomatedTestSuite: () => Promise<any>;
 
+  // Super Admin Total Control Methods
+  addNewProduct: (productData: Partial<Product> & { name: string; categorySlug: string; pricePaise: number; sizeLabel: string }) => Product;
+  updateProduct: (productId: string, updates: Partial<Product>) => void;
+  deleteProduct: (productId: string) => void;
+  updateOrder: (orderId: string, updates: Partial<Order>) => void;
+  addNewDeliveryZone: (zone: Partial<DeliveryZone> & { pincode: string; zoneName: string }) => DeliveryZone;
+  updateDeliveryZone: (zoneId: string, updates: Partial<DeliveryZone>) => void;
+  deleteDeliveryZone: (zoneId: string) => void;
+  websiteAnnouncement: string;
+  updateWebsiteAnnouncement: (text: string) => void;
+  siteSettings: {
+    brandName: string;
+    address: string;
+    googleMapsUrl: string;
+    phone: string;
+    whatsapp: string;
+    email: string;
+    fssaiNumber: string;
+    gstin: string;
+    morningHours: string;
+    eveningHours: string;
+  };
+  updateSiteSettings: (settings: Partial<StoreContextType['siteSettings']>) => void;
+
   // UI Modals & Drawers
   isSubscriptionModalOpen: boolean;
   setIsSubscriptionModalOpen: (open: boolean) => void;
@@ -139,10 +163,50 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Master states
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  // Master states with localStorage persistence
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_products_v2');
+      return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    } catch {
+      return INITIAL_PRODUCTS;
+    }
+  });
   const [categories] = useState(INITIAL_CATEGORIES);
-  const [deliveryZones] = useState<DeliveryZone[]>(INITIAL_DELIVERY_ZONES);
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_delivery_zones_v2');
+      return saved ? JSON.parse(saved) : INITIAL_DELIVERY_ZONES;
+    } catch {
+      return INITIAL_DELIVERY_ZONES;
+    }
+  });
+  const [websiteAnnouncement, setWebsiteAnnouncement] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_announcement');
+      return saved || '🥛 Seoni Morning & Evening Pure A2 Gir Cow Milk Delivery Active | Order Fresh Before 11:00 AM | Sterile Glass Bottles | Visit Our Heritage Shop at Sufi Nagar, Barghat Rd';
+    } catch {
+      return '🥛 Seoni Morning & Evening Pure A2 Gir Cow Milk Delivery Active | Order Fresh Before 11:00 AM | Sterile Glass Bottles | Visit Our Heritage Shop at Sufi Nagar, Barghat Rd';
+    }
+  });
+  const [siteSettings, setSiteSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_site_settings');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      brandName: 'Dugdhsar',
+      address: '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
+      googleMapsUrl: 'https://maps.google.com/?q=3HP5%2B948+Barghat+Rd+Sanjay+Vihar+Colony+Sufi+Nagar+Seoni+Madhya+Pradesh+480661',
+      phone: '+91 7067672604',
+      whatsapp: '+91 7067672604',
+      email: 'contact@dugdhsar.in',
+      fssaiNumber: '10020000000000',
+      gstin: '23AAACD1964E1Z5',
+      morningHours: '5:00 AM – 10:00 AM',
+      eveningHours: '6:00 PM – 10:00 PM'
+    };
+  });
   const [deliverySlots] = useState<DeliverySlot[]>(INITIAL_DELIVERY_SLOTS);
   const [journalPosts] = useState<JournalPost[]>(INITIAL_JOURNAL_POSTS);
   const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
@@ -339,6 +403,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem('dugdhsar_addresses', JSON.stringify(addresses));
   }, [addresses]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_products_v2', JSON.stringify(products));
+  }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_delivery_zones_v2', JSON.stringify(deliveryZones));
+  }, [deliveryZones]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_announcement', websiteAnnouncement);
+  }, [websiteAnnouncement]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_site_settings', JSON.stringify(siteSettings));
+  }, [siteSettings]);
 
   // Record Audit Log helper
   const recordAuditLog = useCallback((action: string, resourceType: string, resourceId: string, metadata?: Record<string, any>) => {
@@ -827,6 +907,128 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     recordAuditLog('PRODUCT_PUBLISH_TOGGLE', 'PRODUCTS', productId);
   }, [recordAuditLog]);
 
+  // Super Admin Total Control Methods
+  const addNewProduct = useCallback((productData: Partial<Product> & { name: string; categorySlug: string; pricePaise: number; sizeLabel: string }): Product => {
+    const productId = `prod-${Date.now()}`;
+    const variantId = `var-${Date.now()}`;
+    const newVariant: ProductVariant = {
+      id: variantId,
+      productId: productId,
+      sku: `DS-${productData.categorySlug.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`,
+      sizeLabel: productData.sizeLabel || '1 Litre Glass Bottle',
+      pricePaise: productData.pricePaise || 17000,
+      compareAtPricePaise: productData.variants?.[0]?.compareAtPricePaise || Math.round((productData.pricePaise || 17000) * 1.15),
+      inStock: true,
+      stockCount: productData.variants?.[0]?.stockCount || 50,
+      isSubscriptionEligible: productData.isSubscriptionEligible ?? true
+    };
+
+    const newProduct: Product = {
+      id: productId,
+      name: productData.name,
+      hindiName: productData.hindiName || productData.name,
+      slug: productData.slug || productData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      categoryId: `cat-${productData.categorySlug}`,
+      categorySlug: productData.categorySlug,
+      description: productData.description || 'Pure unadulterated Vedic A2 dairy sourced directly from indigenous Gir cows, cold-chain tested and delivered fresh.',
+      heritageStory: productData.heritageStory || 'Crafted in accordance with Vedic traditions in Seoni, preserving essential live enzymes and high digestibility.',
+      badge: productData.badge || 'New Launch',
+      rating: 5.0,
+      reviewsCount: 1,
+      ingredients: productData.ingredients || ['100% Pure Certified Desi Gir Cow Milk'],
+      shelfLife: productData.shelfLife || '48 Hours refrigerated at 2°C - 4°C',
+      storageInstructions: productData.storageInstructions || 'Store between 2°C and 4°C in glass bottle.',
+      allergens: productData.allergens || ['Contains Milk (Lactose)'],
+      purityScore: productData.purityScore || 498,
+      isSubscriptionEligible: productData.isSubscriptionEligible ?? true,
+      isPublished: productData.isPublished ?? true,
+      featured: productData.featured ?? false,
+      variants: productData.variants?.length ? productData.variants : [newVariant],
+      images: productData.images?.length ? productData.images : [{
+        id: `img-${Date.now()}`,
+        productId,
+        imageUrl: '/assets/aistudio/image_fe6cbcdf.png',
+        altText: productData.name,
+        sortOrder: 1
+      }],
+      nutritionalHighlights: productData.nutritionalHighlights || [
+        { label: 'A2 Beta-Casein', value: '100% Certified' },
+        { label: 'Cold-Chain Delivery', value: '2°C – 4°C' }
+      ],
+      createdAt: new Date().toISOString()
+    };
+
+    setProducts(prev => [newProduct, ...prev]);
+    recordAuditLog('SUPER_ADMIN_PRODUCT_CREATED', 'PRODUCTS', newProduct.id, { name: newProduct.name, price: newProduct.variants[0]?.pricePaise });
+    return newProduct;
+  }, [recordAuditLog]);
+
+  const updateProduct = useCallback((productId: string, updates: Partial<Product>) => {
+    setProducts(prev => prev.map(p => {
+      if (p.id === productId) {
+        return { ...p, ...updates };
+      }
+      return p;
+    }));
+    recordAuditLog('SUPER_ADMIN_PRODUCT_UPDATED', 'PRODUCTS', productId, { updates });
+  }, [recordAuditLog]);
+
+  const deleteProduct = useCallback((productId: string) => {
+    setProducts(prev => prev.filter(p => p.id !== productId));
+    recordAuditLog('SUPER_ADMIN_PRODUCT_DELETED', 'PRODUCTS', productId);
+  }, [recordAuditLog]);
+
+  const updateOrder = useCallback((orderId: string, updates: Partial<Order>) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        return { ...o, ...updates };
+      }
+      return o;
+    }));
+    recordAuditLog('SUPER_ADMIN_ORDER_UPDATED', 'ORDERS', orderId, { updates });
+  }, [recordAuditLog]);
+
+  const addNewDeliveryZone = useCallback((zone: Partial<DeliveryZone> & { pincode: string; zoneName: string }): DeliveryZone => {
+    const zoneId = `zone-${Date.now()}`;
+    const newZone: DeliveryZone = {
+      id: zoneId,
+      zoneName: zone.zoneName,
+      city: zone.city || 'Seoni',
+      state: zone.state || 'Madhya Pradesh',
+      pincode: zone.pincode,
+      minOrderPaise: zone.minOrderPaise ?? 20000,
+      deliveryFeePaise: zone.deliveryFeePaise ?? 4000,
+      freeDeliveryThresholdPaise: zone.freeDeliveryThresholdPaise ?? 50000,
+      estimatedHours: zone.estimatedHours ?? 2,
+      isColdChainActive: zone.isColdChainActive ?? true,
+      isActive: zone.isActive ?? true,
+      hubAddress: zone.hubAddress || 'Dugdhsar Hub, Barghat Rd, Seoni'
+    };
+    setDeliveryZones(prev => [newZone, ...prev]);
+    recordAuditLog('SUPER_ADMIN_DELIVERY_ZONE_ADDED', 'DELIVERY_ZONES', zoneId, { pincode: zone.pincode, zoneName: zone.zoneName });
+    return newZone;
+  }, [recordAuditLog]);
+
+  const updateDeliveryZone = useCallback((zoneId: string, updates: Partial<DeliveryZone>) => {
+    setDeliveryZones(prev => prev.map(z => z.id === zoneId ? { ...z, ...updates } : z));
+    recordAuditLog('SUPER_ADMIN_DELIVERY_ZONE_UPDATED', 'DELIVERY_ZONES', zoneId, { updates });
+  }, [recordAuditLog]);
+
+  const deleteDeliveryZone = useCallback((zoneId: string) => {
+    setDeliveryZones(prev => prev.filter(z => z.id !== zoneId));
+    recordAuditLog('SUPER_ADMIN_DELIVERY_ZONE_DELETED', 'DELIVERY_ZONES', zoneId);
+  }, [recordAuditLog]);
+
+  const updateWebsiteAnnouncement = useCallback((text: string) => {
+    setWebsiteAnnouncement(text);
+    recordAuditLog('SUPER_ADMIN_ANNOUNCEMENT_UPDATED', 'CONTENT', 'HEADER_BANNER', { text });
+  }, [recordAuditLog]);
+
+  const updateSiteSettings = useCallback((newSettings: Partial<typeof siteSettings>) => {
+    setSiteSettings((prev: any) => ({ ...prev, ...newSettings }));
+    recordAuditLog('SUPER_ADMIN_SETTINGS_UPDATED', 'SETTINGS', 'STORE_CONFIG', { newSettings });
+  }, [recordAuditLog]);
+
   const runAutomatedTestSuite = useCallback(async () => {
     try {
       const res = await fetch('/api/test/run-suite', { method: 'POST' });
@@ -922,6 +1124,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toggleProductPublish,
       recordAuditLog,
       runAutomatedTestSuite,
+      addNewProduct,
+      updateProduct,
+      deleteProduct,
+      updateOrder,
+      addNewDeliveryZone,
+      updateDeliveryZone,
+      deleteDeliveryZone,
+      websiteAnnouncement,
+      updateWebsiteAnnouncement,
+      siteSettings,
+      updateSiteSettings,
       isSubscriptionModalOpen,
       setIsSubscriptionModalOpen,
       isCartOpen,

@@ -35,7 +35,9 @@ export const Navbar: React.FC = () => {
     setIsQAAuditOpen,
     setIsSubscriptionModalOpen,
     searchQuery,
-    setSearchQuery
+    setSearchQuery,
+    websiteAnnouncement,
+    siteSettings
   } = useStore();
 
   const { path, navigate } = useRouter();
