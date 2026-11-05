@@ -1,0 +1,131 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-forest: #263D30;
+  --color-forest-dark: #1A2B22;
+  --color-forest-light: #324F3F;
+  --color-terracotta: #A34F37;
+  --color-terracotta-dark: #8A3E29;
+  --color-gold: #C2A36C;
+  --color-gold-light: #DFC89B;
+  --color-espresso: #302C26;
+  --color-espresso-light: #443E36;
+  --color-sand: #D8C9AD;
+  --color-sand-light: #E7DECB;
+  --color-cream: #F8F4EC;
+  --color-cream-card: #FAF6EE;
+  --color-cream-surface: #F3EDE1;
+  --color-cream-deep: #EBE2D0;
+}
+
+@layer base {
+  :root {
+    /* Heritage Luxury Palette */
+    --color-cream: #F8F4EC;
+    --color-cream-card: #FAF6EE;
+    --color-cream-surface: #F3EDE1;
+    --color-ivory: #F3EDE1;
+    --color-forest: #263D30;
+    --color-terracotta: #A34F37;
+    --color-gold: #C2A36C;
+    --color-espresso: #302C26;
+    --color-sand: #D8C9AD;
+    
+    /* Brand semantic assignments */
+    --brand-primary: #263D30;
+    --brand-dark: #1A2B22;
+    --brand-gold: #C2A36C;
+    --brand-cream: #F8F4EC;
+    --brand-ice: #E8EFEA;
+    --brand-accent: #A34F37;
+  }
+
+  body {
+    font-family: 'Manrope', sans-serif;
+    color: #302C26;
+    background-color: #F8F4EC;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-feature-settings: "kern" 1, "liga" 1;
+    color: #263D30;
+  }
+}
+
+/* Typography Utility Classes */
+.font-serif-luxury {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.font-sans-editorial {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-devanagari {
+  font-family: 'Noto Serif Devanagari', serif;
+}
+
+.font-condensed {
+  font-family: 'Barlow Semi Condensed', sans-serif;
+}
+
+/* Animations from forensic reference */
+@keyframes goupdown {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes godownup {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(8px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes indec {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pulseHalo {
+  0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.6; }
+  50% { transform: translate(-50%, -50%) scale(1.15); opacity: 0.15; }
+  100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.6; }
+}
+
+.anim-goupdown {
+  animation: goupdown 3.2s ease-in-out infinite;
+}
+
+.anim-godownup {
+  animation: godownup 3.2s ease-in-out infinite;
+}
+
+.anim-indec {
+  animation: indec 2s ease-in-out infinite;
+}
+
+.anim-halo {
+  animation: pulseHalo 2.5s ease-in-out infinite;
+}
+
+/* Subtle Editorial Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F3EDE1;
+}
+::-webkit-scrollbar-thumb {
+  background: #C2A36C;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #263D30;
+}
