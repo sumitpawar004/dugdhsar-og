@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Star, Quote, Sparkles, CheckCircle2 } from 'lucide-react';
+import { useStore } from '../context/StoreContext';
 
 interface Testimonial {
   id: string;
@@ -12,6 +13,7 @@ interface Testimonial {
 }
 
 export const TestimonialsSection: React.FC = () => {
+  const { openReviewModal } = useStore();
   const [filter, setFilter] = useState<'all' | 'digestion' | 'kids' | 'taste'>('all');
 
   const testimonials: Testimonial[] = [
@@ -130,6 +132,25 @@ export const TestimonialsSection: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* CTA to Write Review */}
+        <div className="mt-12 text-center bg-[#FAF6EE] p-6 sm:p-8 rounded-3xl border border-[#D8C9AD] max-w-2xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+          <div className="text-center sm:text-left">
+            <h4 className="font-serif text-lg text-[#263D30] font-bold">
+              Are You a DUGDHSAR Patron?
+            </h4>
+            <p className="text-xs text-[#302C26]/70 mt-0.5">
+              Share your experience about Vedic A2 milk, bilona ghee, or daily doorstep delivery.
+            </p>
+          </div>
+          <button
+            onClick={() => openReviewModal()}
+            className="bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-md active:scale-95 flex items-center gap-2 shrink-0 cursor-pointer"
+          >
+            <Star className="w-3.5 h-3.5 fill-[#C2A36C] text-[#C2A36C]" />
+            <span>Write a Review</span>
+          </button>
         </div>
 
       </div>

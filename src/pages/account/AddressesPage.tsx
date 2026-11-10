@@ -4,20 +4,20 @@ import { useStore } from '../../context/StoreContext';
 import { Plus, Trash2, CheckCircle2, MapPin } from 'lucide-react';
 
 export const AddressesPage: React.FC = () => {
-  const { addresses, addAddress, deleteAddress, setDefaultAddress } = useStore();
+  const { userAddresses: addresses, addAddress, deleteAddress, setDefaultAddress, currentUser } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: '',
-    phone: '',
+    fullName: currentUser.fullName || '',
+    phone: currentUser.phone || '',
     flatNo: '',
     apartment: '',
-    street: '',
-    landmark: '',
-    city: 'Gurugram',
-    state: 'Haryana',
-    pincode: '122002',
-    isDefault: false,
-    deliverySlot: '5:30 AM - 11:00 AM' as '5:30 AM - 11:00 AM' | '5:00 PM - 7:00 PM',
+    street: 'Barghat Rd, Sufi Nagar',
+    landmark: 'Near Sanjay Vihar Colony',
+    city: 'Seoni',
+    state: 'Madhya Pradesh',
+    pincode: '480661',
+    isDefault: true,
+    deliverySlot: '5:00 AM - 10:00 AM',
     instructions: ''
   });
 
@@ -28,17 +28,17 @@ export const AddressesPage: React.FC = () => {
     addAddress(formData);
     setShowAddModal(false);
     setFormData({
-      fullName: '',
-      phone: '',
+      fullName: currentUser.fullName || '',
+      phone: currentUser.phone || '',
       flatNo: '',
       apartment: '',
-      street: '',
+      street: 'Barghat Rd, Sufi Nagar',
       landmark: '',
-      city: 'Gurugram',
-      state: 'Haryana',
-      pincode: '122002',
+      city: 'Seoni',
+      state: 'Madhya Pradesh',
+      pincode: '480661',
       isDefault: false,
-      deliverySlot: '5:30 AM - 11:00 AM',
+      deliverySlot: '5:00 AM - 10:00 AM',
       instructions: ''
     });
   };
@@ -58,14 +58,28 @@ export const AddressesPage: React.FC = () => {
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-[#263D30] text-[#FAF6EE] px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#1A2B22] flex items-center gap-1.5 transition-colors"
+            className="bg-[#263D30] text-[#FAF6EE] px-4 py-2 rounded-xl text-xs font-semibold hover:bg-[#1A2B22] flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add New Address</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {addresses.length === 0 ? (
+          <div className="py-12 text-center text-xs text-[#302C26]/70">
+            <MapPin className="w-10 h-10 text-[#C2A36C] mx-auto mb-3" />
+            <p className="font-semibold text-sm text-[#263D30] mb-1">No saved address found.</p>
+            <p className="text-xs text-[#302C26]/60 mb-4">Add your home or office address in Seoni for morning doorstep drops.</p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-5 py-2.5 bg-[#263D30] text-[#FAF6EE] rounded-xl text-xs font-semibold hover:bg-[#1A2B22] cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Delivery Address</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {addresses.map((addr) => (
             <div
               key={addr.id}
@@ -125,6 +139,7 @@ export const AddressesPage: React.FC = () => {
             </div>
           ))}
         </div>
+      )}
 
         {/* Modal: Add Address */}
         {showAddModal && (

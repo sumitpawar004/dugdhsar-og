@@ -1,0 +1,8 @@
+# DUGDHSAR Responsible Security Disclosure Policy
+Contact: mailto:security@dugdhsar.in
+Contact: https://dugdhsar.in/contact
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: en, hi
+Canonical: https://dugdhsar.in/.well-known/security.txt
+Policy: https://dugdhsar.in/privacy-policy
+Acknowledgments: https://dugdhsar.in/our-story

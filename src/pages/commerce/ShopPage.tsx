@@ -16,7 +16,8 @@ export const ShopPage: React.FC = () => {
     selectedCategory,
     setSelectedCategory,
     sortBy,
-    setSortBy
+    setSortBy,
+    openReviewModal
   } = useStore();
 
   const { navigate } = useRouter();
@@ -227,18 +228,36 @@ export const ShopPage: React.FC = () => {
 
                   {/* Product Details & Variant Selection */}
                   <div className="p-6">
-                    {/* Clean unboxed metadata with dot separators */}
-                    <div className="flex items-center gap-2 text-xs text-[#302C26]/70 mb-2">
-                      <span className="font-semibold text-[#A34F37] uppercase tracking-wider text-[10px]">
-                        {product.categorySlug}
-                      </span>
-                      <span>·</span>
-                      <span className="flex items-center gap-0.5 text-amber-700 font-medium">
-                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                        <span>{product.rating}</span>
-                      </span>
-                      <span>·</span>
-                      <span>{product.reviewsCount} reviews</span>
+                    {/* Clean unboxed metadata with dot separators and Write Review option */}
+                    <div className="flex items-center justify-between text-xs text-[#302C26]/70 mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-[#A34F37] uppercase tracking-wider text-[10px]">
+                          {product.categorySlug}
+                        </span>
+                        <span>·</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openReviewModal(product);
+                          }}
+                          className="flex items-center gap-1 text-amber-700 hover:text-[#263D30] font-medium cursor-pointer"
+                          title="View or write a review"
+                        >
+                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                          <span>{product.rating.toFixed(1)}</span>
+                          <span className="text-[#302C26]/60">({product.reviewsCount})</span>
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openReviewModal(product);
+                        }}
+                        className="text-[10px] font-bold text-[#A34F37] hover:underline cursor-pointer"
+                      >
+                        + Review
+                      </button>
                     </div>
 
                     {/* Product Name */}

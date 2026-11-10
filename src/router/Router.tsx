@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRouter } from './RouterContext';
+import { useStore } from '../context/StoreContext';
 
 // Public pages
 import { HomePage } from '../pages/public/HomePage';
@@ -42,6 +43,10 @@ import { DailyMilkTrackingPage } from '../pages/account/DailyMilkTrackingPage';
 // Dealer Portal
 import { DealerPortalPage } from '../pages/dealer/DealerPortalPage';
 
+// Manager pages
+import { ManagerLoginPage } from '../pages/manager/ManagerLoginPage';
+import { ManagerDashboardPage } from '../pages/manager/ManagerDashboardPage';
+
 // Admin pages
 import { AdminLoginPage } from '../pages/admin/AdminLoginPage';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
@@ -51,6 +56,7 @@ import { NotFoundPage } from '../pages/NotFoundPage';
 
 export const AppRouter: React.FC = () => {
   const { path } = useRouter();
+  const { currentUser, isAuthenticated } = useStore();
 
   // Root Homepage
   if (path === '/' || path === '') {
@@ -99,22 +105,42 @@ export const AppRouter: React.FC = () => {
   // Direct login
   if (path === '/login') return <LoginPage />;
 
-  // Account routes
+  // Account login & register (Public)
   if (path === '/account/login') return <LoginPage />;
   if (path === '/account/register') return <RegisterPage />;
-  if (path === '/account') return <AccountOverviewPage />;
-  if (path === '/account/profile') return <ProfilePage />;
-  if (path === '/account/addresses') return <AddressesPage />;
-  if (path === '/account/daily-milk-tracking' || path === '/account/tracking' || path === '/account/milk-calendar' || path === '/account/subscriptions') {
-    return <DailyMilkTrackingPage />;
+
+  // Strict Customer Account Route Guard: if unauthenticated, redirect to LoginPage
+  if (path.startsWith('/account')) {
+    if (!isAuthenticated || currentUser.id === 'guest') {
+      return <LoginPage />;
+    }
+    if (path === '/account') return <AccountOverviewPage />;
+    if (path === '/account/profile') return <ProfilePage />;
+    if (path === '/account/addresses') return <AddressesPage />;
+    if (path === '/account/daily-milk-tracking' || path === '/account/tracking' || path === '/account/milk-calendar' || path === '/account/subscriptions') {
+      return <DailyMilkTrackingPage />;
+    }
+    if (path === '/account/payments') return <AccountOverviewPage />;
+    if (path.startsWith('/account/orders/')) return <OrderDetailPage />;
+    if (path === '/account/orders') return <OrdersPage />;
   }
-  if (path === '/account/payments') return <AccountOverviewPage />;
-  if (path.startsWith('/account/orders/')) return <OrderDetailPage />;
-  if (path === '/account/orders') return <OrdersPage />;
 
   // B2B Dealer Portal routes (/dealer, /dealer/login, /dealer/dashboard, /dealer/orders, /dealer/inventory, /dealer/reports)
   if (path === '/dealer' || path.startsWith('/dealer/')) {
     return <DealerPortalPage />;
+  }
+
+  // Manager Login route
+  if (path === '/manager/login') {
+    return <ManagerLoginPage />;
+  }
+
+  // Strict Manager Panel Route Guard: only users with role === 'manager' or 'admin' can access /manager/*
+  if (path === '/manager' || path.startsWith('/manager/')) {
+    if ((currentUser.role !== 'manager' && currentUser.role !== 'admin') || !isAuthenticated) {
+      return <ManagerLoginPage />;
+    }
+    return <ManagerDashboardPage />;
   }
 
   // Admin Login route
@@ -122,8 +148,11 @@ export const AppRouter: React.FC = () => {
     return <AdminLoginPage />;
   }
 
-  // Admin routes (/admin, /admin/dashboard, /admin/products, /admin/categories, /admin/orders, /admin/customers, /admin/dealers, /admin/partners, /admin/inventory, /admin/deliveries, /admin/payments, /admin/offers, /admin/analytics, /admin/reviews, /admin/content, /admin/staff, /admin/settings, /admin/audit-logs)
+  // Strict Admin Panel Route Guard: only users with role === 'admin' can access /admin/*
   if (path === '/admin' || path.startsWith('/admin/')) {
+    if (currentUser.role !== 'admin' || !isAuthenticated) {
+      return <AdminLoginPage />;
+    }
     return <AdminDashboardPage />;
   }
 

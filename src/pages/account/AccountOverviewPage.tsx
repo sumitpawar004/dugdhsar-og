@@ -6,7 +6,7 @@ import { formatPaise } from '../../types';
 import { Package, Sparkles, MapPin, Play, Pause, ArrowRight, Clock, Milk, Calendar, Thermometer, ShoppingBag, Headset, CheckCircle2 } from 'lucide-react';
 
 export const AccountOverviewPage: React.FC = () => {
-    const { subscriptions, toggleSubscriptionPause, orders, addresses, setIsSubscriptionModalOpen } = useStore();
+    const { userSubscriptions: subscriptions, toggleSubscriptionPause, userOrders: orders, userAddresses: addresses, setIsSubscriptionModalOpen } = useStore();
     const { navigate } = useRouter();
 
     const recentOrder = orders[0];

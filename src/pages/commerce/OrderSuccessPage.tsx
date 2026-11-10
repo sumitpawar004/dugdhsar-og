@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { formatPaise } from '../../types';
-import confetti from 'canvas-confetti';
 import { 
   CheckCircle2, 
   Truck, 
@@ -29,17 +28,15 @@ export const OrderSuccessPage: React.FC = () => {
   const order = getOrderById(orderId) || orders[0];
 
   useEffect(() => {
-    // Fire celebratory confetti on mount
-    try {
+    // Dynamically load and fire celebratory confetti only on mount
+    import('canvas-confetti').then(({ default: confetti }) => {
       confetti({
         particleCount: 80,
         spread: 70,
         origin: { y: 0.6 },
         colors: ['#C2A36C', '#263D30', '#A34F37', '#F3EDE1']
       });
-    } catch {
-      // fallback
-    }
+    }).catch(() => {});
   }, []);
 
   if (!order) {

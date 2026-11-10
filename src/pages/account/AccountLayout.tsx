@@ -16,7 +16,7 @@ import {
 import { authService } from '../../lib/supabase';
 
 export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, switchUserPersona } = useStore();
+  const { currentUser, switchUserPersona, logoutUser } = useStore();
   const { path, navigate } = useRouter();
 
   const navItems = [
@@ -120,14 +120,14 @@ export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ childre
             )}
 
             <button
-              onClick={async () => {
-                await authService.signOut();
+              onClick={() => {
+                logoutUser();
                 navigate('/account/login');
               }}
               className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold text-rose-800 hover:bg-rose-50 transition-colors text-left mt-2 pt-2 border-t border-[#D8C9AD]/40 cursor-pointer"
             >
               <LogOut className="w-4 h-4 text-rose-700" />
-              <span>Sign Out (Supabase Auth)</span>
+              <span>Sign Out</span>
             </button>
           </div>
 

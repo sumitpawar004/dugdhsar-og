@@ -9,10 +9,19 @@ import { FloatingControls } from './components/FloatingControls';
 import { CartDrawer } from './components/CartDrawer';
 import { QAAuditConsole } from './components/QAAuditConsole';
 import { MorningSubscriptionModal } from './components/MorningSubscriptionModal';
+import { ProductReviewModal } from './components/ProductReviewModal';
+
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
+import { initWebVitals } from './lib/analytics';
 
 const AppContent: React.FC = () => {
   const { activeViewport } = useStore();
   const [isPreloaderDone, setIsPreloaderDone] = useState(false);
+
+  React.useEffect(() => {
+    initWebVitals();
+  }, []);
 
   const viewportContainerClass = 
     activeViewport === 'mobile' 
@@ -31,9 +40,11 @@ const AppContent: React.FC = () => {
         {/* Navigation Bar */}
         <Navbar />
 
-        {/* Dynamic Multi-Route Viewport Engine */}
+        {/* Dynamic Multi-Route Viewport Engine with Error Boundary */}
         <main className="flex-1 w-full">
-          <AppRouter />
+          <ErrorBoundary>
+            <AppRouter />
+          </ErrorBoundary>
         </main>
 
         {/* Master Footer */}
@@ -47,14 +58,18 @@ const AppContent: React.FC = () => {
       <CartDrawer />
       <QAAuditConsole />
       <MorningSubscriptionModal />
+      <ProductReviewModal />
+
+      {/* Privacy and Cookie Consent Banner */}
+      <CookieConsentBanner />
     </div>
   );
 };
 
-export default function App() {
+export default function App({ initialPath }: { initialPath?: string } = {}) {
   return (
     <StoreProvider>
-      <RouterProvider>
+      <RouterProvider initialPath={initialPath}>
         <AppContent />
       </RouterProvider>
     </StoreProvider>

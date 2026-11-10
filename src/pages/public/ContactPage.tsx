@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { Mail, Phone, MapPin, Send, CheckCircle2, Clock, Navigation } from 'lucide-react';
+import { LocationCard } from '../../components/LocationCard';
 
 export const ContactPage: React.FC = () => {
   const { submitEnquiry } = useStore();
@@ -65,11 +66,27 @@ export const ContactPage: React.FC = () => {
               <h3 className="text-2xl font-serif text-[#C2A36C] mb-6">Contact & Locations</h3>
               
               <div className="space-y-6 text-xs text-[#F3EDE1]/85">
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 bg-white/5 p-3 rounded-xl border border-white/10">
                   <MapPin className="w-5 h-5 text-[#C2A36C] shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="text-white block text-sm">Physical Retail Shop (Seoni)</strong>
-                    <p>DUGDHSAR Dairy, 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661</p>
+                  <div className="space-y-1.5 w-full">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-white block text-sm">Physical Retail Shop (Seoni)</strong>
+                      <span className="text-[9px] font-bold uppercase bg-[#C2A36C] text-[#263D30] px-1.5 py-0.2 rounded font-sans">
+                        Sanjay Vihar Colony
+                      </span>
+                    </div>
+                    <p className="text-[#F3EDE1]/90 leading-snug">
+                      DUGDHSAR Dairy, 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661
+                    </p>
+                    <a
+                      href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#C2A36C] hover:bg-[#d4b476] text-[#1F3327] font-black text-[11px] uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95"
+                    >
+                      <Navigation className="w-3.5 h-3.5 fill-[#1F3327]" />
+                      <span>Get Directions</span>
+                    </a>
                   </div>
                 </div>
 
@@ -230,80 +247,13 @@ export const ContactPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Physical Shop Interactive Map & Direct Navigation Section */}
-        <div className="mt-12 sm:mt-16 bg-[#FAF6EE] rounded-3xl border-2 border-[#D8C9AD] overflow-hidden shadow-sm">
-          <div className="p-6 sm:p-8 bg-[#263D30] text-[#FAF6EE] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#C2A36C] animate-pulse" />
-                <span className="text-[10px] uppercase font-bold tracking-widest text-[#C2A36C]">
-                  Direct Shop Navigation · Seoni, MP
-                </span>
-              </div>
-              <h2 className="font-serif text-xl sm:text-2xl font-bold text-white">
-                Visit Our Physical Retail Dairy Counter
-              </h2>
-              <p className="text-xs text-[#FAF6EE]/80 mt-1 max-w-xl">
-                3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661 · Morning: 5–10 AM & Evening: 6–10 PM
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-              <a
-                href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 md:flex-initial px-5 py-3 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
-              >
-                <Navigation className="w-4 h-4 fill-[#263D30]" />
-                <span>Get Driving Directions</span>
-              </a>
-
-              <a
-                href="https://www.google.com/maps/search/?api=1&query=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 md:flex-initial px-4 py-3 bg-white/10 hover:bg-white/20 text-[#FAF6EE] border border-white/20 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2"
-              >
-                <span>Open in Google Maps App</span>
-              </a>
-            </div>
-          </div>
-
-          {/* Embedded Google Map Iframe */}
-          <div className="w-full h-80 sm:h-96 relative bg-[#EBE2D0]">
-            <iframe
-              title="DUGDHSAR Physical Shop Location Seoni MP"
-              src="https://maps.google.com/maps?q=3HP5%2B948%2C%20Barghat%20Rd%2C%20Sanjay%20Vihar%20Colony%2C%20Sufi%20Nagar%2C%20Seoni%2C%20Madhya%20Pradesh%20480661&t=&z=16&ie=UTF8&iwloc=&output=embed"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen={true}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              className="w-full h-full"
-            />
-          </div>
-
-          {/* Quick Guidance Bar */}
-          <div className="p-4 sm:p-5 bg-[#FAF6EE] border-t border-[#D8C9AD] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#302C26]">
-            <div className="flex items-center gap-2 text-center sm:text-left">
-              <span className="font-bold text-[#A34F37]">Plus Code:</span>
-              <span className="font-mono font-semibold bg-[#F8F4EC] px-2.5 py-1 rounded border border-[#D8C9AD]">
-                3HP5+948, Seoni, Madhya Pradesh
-              </span>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <a href="tel:7067672604" className="text-[#263D30] hover:text-[#A34F37] flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-[#C2A36C]" />
-                <span>Call Shop: +91 7067672604</span>
-              </a>
-              <span className="text-[#D8C9AD]">|</span>
-              <span className="text-emerald-800 font-bold">Open Everyday</span>
-            </div>
-          </div>
-        </div>
+        {/* Physical Shop LocationCard with High-Contrast Get Directions Button */}
+        <LocationCard 
+          className="mt-12 sm:mt-16" 
+          showHours={true} 
+          showPhone={true} 
+          showMapEmbed={true} 
+        />
 
       </div>
     </div>

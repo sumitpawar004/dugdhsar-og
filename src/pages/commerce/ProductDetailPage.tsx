@@ -27,7 +27,9 @@ export const ProductDetailPage: React.FC = () => {
     setDeliveryPincode,
     isPincodeServiceable,
     activeDeliveryZone,
-    submitReview
+    submitReview,
+    openReviewModal,
+    toggleHelpfulReview
   } = useStore();
 
   const { params, navigate } = useRouter();
@@ -46,13 +48,9 @@ export const ProductDetailPage: React.FC = () => {
   const [pincodeMessage, setPincodeMessage] = useState<string | null>(null);
   const [addedToast, setAddedToast] = useState(false);
 
-  // Review form modal
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [revRating, setRevRating] = useState(5);
-  const [revTitle, setRevTitle] = useState('');
-  const [revComment, setRevComment] = useState('');
-  const [revName, setRevName] = useState('');
-  const [revCity, setRevCity] = useState('');
+  // Review state
+  const [reviewFilterRating, setReviewFilterRating] = useState<number | 'all'>('all');
+  const [helpfulGiven, setHelpfulGiven] = useState<Record<string, boolean>>({});
 
   const inWishlist = isInWishlist(product.id);
 
@@ -76,26 +74,6 @@ export const ProductDetailPage: React.FC = () => {
     );
     setAddedToast(true);
     setTimeout(() => setAddedToast(false), 2500);
-  };
-
-  const handleReviewSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!revTitle || !revComment || !revName) return;
-
-    submitReview({
-      productId: product.id,
-      productName: product.name,
-      userName: revName,
-      userCity: revCity || 'New Delhi',
-      rating: revRating,
-      title: revTitle,
-      comment: revComment,
-      verifiedPurchase: true
-    });
-
-    setShowReviewModal(false);
-    setRevTitle('');
-    setRevComment('');
   };
 
   return (
@@ -374,148 +352,217 @@ export const ProductDetailPage: React.FC = () => {
         </div>
 
         {/* Customer Reviews Section */}
-        <div className="bg-[#FAF6EE] p-8 sm:p-12 rounded-3xl border border-[#D8C9AD]">
+        <div className="bg-[#FAF6EE] p-6 sm:p-10 rounded-3xl border border-[#D8C9AD]">
+          {/* Header Row */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-8 border-b border-[#D8C9AD]">
             <div>
-              <h2 className="font-serif text-2xl text-[#263D30] font-semibold">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#A34F37] bg-[#F8F4EC] px-2.5 py-0.5 rounded-full border border-[#D8C9AD]/60">
+                  Customer Testimonials
+                </span>
+                <span className="text-xs text-[#302C26]/60">· Seoni & Delhi-NCR Patrons</span>
+              </div>
+              <h2 className="font-serif text-2xl sm:text-3xl text-[#263D30] font-semibold">
                 Verified Patron Reviews ({productReviews.length})
               </h2>
-              <p className="text-xs text-[#302C26]/70">
-                Honest feedback from households consuming DUGDHSAR daily.
+              <p className="text-xs text-[#302C26]/70 mt-0.5">
+                Authentic experiences from daily subscribers enjoying DUGDHSAR Vedic Gir cow dairy.
               </p>
             </div>
             <button
-              onClick={() => setShowReviewModal(true)}
-              className="bg-[#263D30] text-[#FAF6EE] px-5 py-2.5 rounded-lg text-xs font-semibold hover:bg-[#1A2B22] transition-colors"
+              onClick={() => openReviewModal(product)}
+              className="bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] px-6 py-2.5 rounded-full text-xs font-bold transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2 cursor-pointer self-start sm:self-auto"
             >
-              Write a Review
+              <Star className="w-3.5 h-3.5 fill-[#C2A36C] text-[#C2A36C]" />
+              <span>Write a Review</span>
             </button>
           </div>
 
-          {productReviews.length === 0 ? (
-            <p className="text-xs text-[#302C26]/70 py-6">Be the first to review this heritage product.</p>
-          ) : (
-            <div className="space-y-6">
-              {productReviews.map((rev) => (
-                <div key={rev.id} className="pb-6 border-b border-[#D8C9AD]/40 last:border-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex text-[#C2A36C]">
-                        {Array.from({ length: rev.rating }).map((_, i) => (
-                          <Star key={i} className="w-3.5 h-3.5 fill-[#C2A36C]" />
-                        ))}
-                      </div>
-                      <span className="font-semibold text-xs text-[#263D30]">{rev.title}</span>
+          {/* Rating Breakdown & Stats Card */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 p-6 bg-[#F8F4EC] rounded-2xl border border-[#D8C9AD]/60 mb-8 items-center">
+            {/* Left Score Box */}
+            <div className="md:col-span-4 text-center md:text-left border-b md:border-b-0 md:border-r border-[#D8C9AD]/60 pb-4 md:pb-0 md:pr-6">
+              <div className="text-4xl sm:text-5xl font-black font-serif text-[#263D30]">
+                {product.rating.toFixed(1)}
+              </div>
+              <div className="flex items-center justify-center md:justify-start text-[#C2A36C] my-1.5">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star 
+                    key={s} 
+                    className={`w-4 h-4 ${s <= Math.round(product.rating) ? 'fill-[#C2A36C]' : 'text-slate-300'}`} 
+                  />
+                ))}
+              </div>
+              <div className="text-xs text-[#302C26]/75">
+                Based on <strong>{product.reviewsCount}</strong> verified patron ratings
+              </div>
+              <div className="text-[11px] text-emerald-800 font-semibold mt-1 flex items-center justify-center md:justify-start gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                <span>100% Verified Milk Consumers</span>
+              </div>
+            </div>
+
+            {/* Right Distribution Bars */}
+            <div className="md:col-span-8 space-y-1.5 text-xs">
+              {[5, 4, 3, 2, 1].map((star) => {
+                const count = productReviews.filter(r => r.rating === star).length;
+                const total = Math.max(1, productReviews.length);
+                const percent = Math.round((count / total) * 100);
+
+                return (
+                  <div key={star} className="flex items-center gap-2">
+                    <span className="w-12 text-[11px] font-semibold text-[#263D30] shrink-0">
+                      {star} Star
+                    </span>
+                    <div className="flex-1 h-2 rounded-full bg-[#E5DBC7] overflow-hidden">
+                      <div 
+                        className="h-full bg-[#C2A36C] rounded-full transition-all duration-500"
+                        style={{ width: `${percent}%` }}
+                      />
                     </div>
-                    <span className="text-[11px] text-[#302C26]/50">
-                      {new Date(rev.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    <span className="w-10 text-right text-[11px] font-mono text-[#302C26]/60 shrink-0">
+                      {count}
                     </span>
                   </div>
-                  <p className="text-xs text-[#302C26]/80 leading-relaxed mb-2">
-                    {rev.comment}
-                  </p>
-                  <div className="text-[11px] text-[#302C26]/60 flex items-center gap-2">
-                    <span>{rev.userName} ({rev.userCity})</span>
-                    <span>·</span>
-                    <span className="text-emerald-700 font-medium">✓ Verified Daily Consumer</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Modal: Write Review */}
-        {showReviewModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-[#FAF6EE] max-w-lg w-full p-8 rounded-2xl border border-[#D8C9AD] shadow-2xl">
-              <h3 className="font-serif text-2xl text-[#263D30] font-semibold mb-4">
-                Review {product.name}
-              </h3>
-              <form onSubmit={handleReviewSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold mb-1">Star Rating</label>
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        type="button"
-                        key={star}
-                        onClick={() => setRevRating(star)}
-                        className="text-[#C2A36C] p-1"
-                      >
-                        <Star className={`w-5 h-5 ${star <= revRating ? 'fill-[#C2A36C]' : 'text-slate-300'}`} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1">Review Headline</label>
-                  <input
-                    type="text"
-                    required
-                    value={revTitle}
-                    onChange={(e) => setRevTitle(e.target.value)}
-                    placeholder="e.g. Incomparable morning freshness and thick cream"
-                    className="w-full px-3 py-2 text-xs border border-[#D8C9AD] rounded-lg bg-[#F8F4EC] text-[#263D30]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold mb-1">Your Detailed Experience</label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={revComment}
-                    onChange={(e) => setRevComment(e.target.value)}
-                    placeholder="Share your experience regarding digestion, boiling, cream texture..."
-                    className="w-full px-3 py-2 text-xs border border-[#D8C9AD] rounded-lg bg-[#F8F4EC] text-[#263D30]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Your Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={revName}
-                      onChange={(e) => setRevName(e.target.value)}
-                      placeholder="e.g. S. Sen"
-                      className="w-full px-3 py-2 text-xs border border-[#D8C9AD] rounded-lg bg-[#F8F4EC] text-[#263D30]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">City / Sector</label>
-                    <input
-                      type="text"
-                      value={revCity}
-                      onChange={(e) => setRevCity(e.target.value)}
-                      placeholder="e.g. DLF Phase 5"
-                      className="w-full px-3 py-2 text-xs border border-[#D8C9AD] rounded-lg bg-[#F8F4EC] text-[#263D30]"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-4 border-t border-[#D8C9AD]">
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewModal(false)}
-                    className="px-4 py-2 text-xs font-medium text-[#302C26]"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-[#263D30] text-[#FAF6EE] px-5 py-2 text-xs font-semibold rounded-lg hover:bg-[#1A2B22]"
-                  >
-                    Submit Review
-                  </button>
-                </div>
-              </form>
+                );
+              })}
             </div>
           </div>
-        )}
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 scrollbar-none">
+            <span className="text-xs font-bold text-[#263D30] shrink-0 mr-1">Filter:</span>
+            <button
+              onClick={() => setReviewFilterRating('all')}
+              className={`text-xs px-3.5 py-1.5 rounded-full font-semibold transition-all border cursor-pointer shrink-0 ${
+                reviewFilterRating === 'all'
+                  ? 'bg-[#263D30] text-[#FAF6EE] border-[#263D30]'
+                  : 'bg-[#F8F4EC] text-[#302C26] border-[#D8C9AD] hover:bg-[#D8C9AD]/30'
+              }`}
+            >
+              All Reviews ({productReviews.length})
+            </button>
+            {[5, 4, 3, 2, 1].map((s) => {
+              const count = productReviews.filter(r => r.rating === s).length;
+              if (count === 0 && productReviews.length > 0) return null;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setReviewFilterRating(s)}
+                  className={`text-xs px-3.5 py-1.5 rounded-full font-semibold transition-all border cursor-pointer shrink-0 flex items-center gap-1 ${
+                    reviewFilterRating === s
+                      ? 'bg-[#263D30] text-[#FAF6EE] border-[#263D30]'
+                      : 'bg-[#F8F4EC] text-[#302C26] border-[#D8C9AD] hover:bg-[#D8C9AD]/30'
+                  }`}
+                >
+                  <Star className="w-3 h-3 fill-[#C2A36C] text-[#C2A36C]" />
+                  <span>{s} Stars ({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Reviews List */}
+          {(() => {
+            const filtered = productReviews.filter(r => 
+              reviewFilterRating === 'all' ? true : r.rating === reviewFilterRating
+            );
+
+            if (filtered.length === 0) {
+              return (
+                <div className="text-center py-10 bg-[#F8F4EC] rounded-2xl border border-[#D8C9AD]/60 p-6 space-y-3">
+                  <Star className="w-8 h-8 text-[#C2A36C] mx-auto opacity-60" />
+                  <p className="text-xs text-[#302C26]/70">
+                    No reviews in this star category yet. Be the first to share your experience!
+                  </p>
+                  <button
+                    onClick={() => openReviewModal(product)}
+                    className="bg-[#263D30] text-[#FAF6EE] px-5 py-2 rounded-full text-xs font-semibold hover:bg-[#1A2B22] cursor-pointer"
+                  >
+                    Write a Review for {product.name}
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-6">
+                {filtered.map((rev) => {
+                  const isHelpful = helpfulGiven[rev.id];
+
+                  return (
+                    <div key={rev.id} className="pb-6 border-b border-[#D8C9AD]/40 last:border-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex text-[#C2A36C]">
+                            {Array.from({ length: rev.rating }).map((_, i) => (
+                              <Star key={i} className="w-3.5 h-3.5 fill-[#C2A36C]" />
+                            ))}
+                          </div>
+                          <span className="font-semibold text-xs sm:text-sm text-[#263D30]">
+                            {rev.title}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-[#302C26]/50">
+                          {new Date(rev.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+
+                      {/* Optional Experience Tags */}
+                      {rev.tags && rev.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 my-2">
+                          {rev.tags.map((tag, idx) => (
+                            <span 
+                              key={idx}
+                              className="text-[10px] bg-[#F8F4EC] border border-[#D8C9AD]/60 text-[#263D30] font-medium px-2 py-0.5 rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-xs text-[#302C26]/80 leading-relaxed mb-3">
+                        {rev.comment}
+                      </p>
+
+                      <div className="flex items-center justify-between text-[11px] text-[#302C26]/70">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-[#263D30]">{rev.userName}</span>
+                          <span>·</span>
+                          <span className="text-[#302C26]/60">{rev.userCity}</span>
+                          <span>·</span>
+                          <span className="text-emerald-700 font-semibold flex items-center gap-0.5">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Verified Patron</span>
+                          </span>
+                        </div>
+
+                        {/* Helpful vote */}
+                        <button
+                          onClick={() => {
+                            if (!isHelpful) {
+                              toggleHelpfulReview(rev.id);
+                              setHelpfulGiven(prev => ({ ...prev, [rev.id]: true }));
+                            }
+                          }}
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] transition-colors cursor-pointer border ${
+                            isHelpful
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-[#F8F4EC] hover:bg-[#FAF6EE] text-[#302C26]/70 border-[#D8C9AD]/60'
+                          }`}
+                        >
+                          <Heart className={`w-3 h-3 ${isHelpful ? 'fill-red-500 text-red-500' : ''}`} />
+                          <span>Helpful ({(rev.helpfulCount || 0) + (isHelpful ? 1 : 0)})</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );

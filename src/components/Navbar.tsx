@@ -44,12 +44,14 @@ export const Navbar: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false);
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   const handleNavClick = (href: string) => {
     setIsMobileMenuOpen(false);
     setIsCategoryDropdownOpen(false);
+    setIsMoreDropdownOpen(false);
     navigate(href);
   };
 
@@ -112,10 +114,10 @@ export const Navbar: React.FC = () => {
 
       {/* Main Top Bar */}
       <header className="sticky top-0 z-40 bg-[#F8F4EC]/95 backdrop-blur-md border-b border-[#D8C9AD] transition-all">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8 h-16 sm:h-20 flex items-center justify-between gap-1.5 sm:gap-3 lg:gap-4 flex-nowrap w-full">
           
           {/* LEFT SECTION: Official Logo at extreme left + Hamburger menu + Top Left Menu Bar */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 flex-nowrap">
             {/* Logo */}
             <div 
               onClick={() => handleNavClick('/')}
@@ -124,13 +126,13 @@ export const Navbar: React.FC = () => {
               <img 
                 src="/assets/aistudio/1000095715-clean_c92aa3a9.png" 
                 alt="Dugdhsar Gir Cow Emblem" 
-                className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded-xl"
+                className="h-9 w-9 sm:h-11 sm:w-11 object-contain rounded-xl"
               />
               <div className="flex flex-col">
-                <span className="font-serif text-lg sm:text-xl font-bold tracking-tight text-[#263D30] leading-none whitespace-nowrap">
+                <span className="font-serif text-base sm:text-xl font-bold tracking-tight text-[#263D30] leading-none whitespace-nowrap">
                   DUGDHSAR
                 </span>
-                <span className="text-[7.5px] sm:text-[8.5px] uppercase tracking-[0.18em] text-[#A34F37] font-semibold mt-0.5 whitespace-nowrap">
+                <span className="text-[7px] sm:text-[8px] uppercase tracking-[0.16em] text-[#A34F37] font-semibold mt-0.5 whitespace-nowrap">
                   60 Years Heritage
                 </span>
               </div>
@@ -139,15 +141,15 @@ export const Navbar: React.FC = () => {
             {/* Hamburger Menu immediately beside logo */}
             <button
               onClick={() => setIsMobileMenuOpen(true)}
-              className="p-1.5 sm:p-2 text-[#263D30] hover:text-[#A34F37] transition-colors rounded-xl hover:bg-[#D8C9AD]/30 flex items-center justify-center cursor-pointer ml-0.5"
+              className="p-1.5 sm:p-2 text-[#263D30] hover:text-[#A34F37] transition-colors rounded-xl hover:bg-[#D8C9AD]/30 flex items-center justify-center cursor-pointer shrink-0"
               title="Open Navigation Menu"
               aria-label="Navigation Menu"
             >
-              <Menu className="w-5 h-5 sm:w-5 sm:h-5" />
+              <Menu className="w-5 h-5" />
             </button>
 
-            {/* TOP LEFT MENU BAR (Connected across all pages) */}
-            <nav className="hidden lg:flex items-center gap-3.5 xl:gap-5 text-xs font-semibold text-[#302C26] ml-2">
+            {/* TOP LEFT MENU BAR (Responsive for Windows Tab, Tablet & Desktop) */}
+            <nav className="hidden lg:flex items-center gap-2 xl:gap-3 2xl:gap-4.5 text-xs font-semibold text-[#302C26] ml-1 shrink-0">
               <button 
                 onClick={() => handleNavClick('/')}
                 className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
@@ -163,7 +165,7 @@ export const Navbar: React.FC = () => {
               >
                 <button 
                   onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                  className={`flex items-center gap-1 hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path.startsWith('/products/') && path !== '/products' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+                  className={`flex items-center gap-0.5 sm:gap-1 hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path.startsWith('/products/') && path !== '/products' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
                 >
                   <span>Category</span>
                   <ChevronDown className="w-3.5 h-3.5 text-[#A34F37]" />
@@ -225,48 +227,98 @@ export const Navbar: React.FC = () => {
               </button>
 
               <button 
+                onClick={() => handleNavClick('/account/daily-milk-tracking')}
+                className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 flex items-center gap-1 ${path.includes('milk-tracking') ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-[#C2A36C]" />
+                <span className="hidden xl:inline">Milk Calendar</span>
+                <span className="xl:hidden">Calendar</span>
+              </button>
+
+              {/* Inline Secondary Links (Visible on 2xl Desktop) */}
+              <button 
                 onClick={() => handleNavClick('/our-story')}
-                className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/our-story' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+                className={`hidden 2xl:block hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/our-story' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
               >
                 Our Story
               </button>
 
               <button 
                 onClick={() => handleNavClick('/quality')}
-                className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/quality' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+                className={`hidden 2xl:block hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/quality' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
               >
                 Our Quality
               </button>
 
               <button 
                 onClick={() => handleNavClick('/contact')}
-                className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/contact' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+                className={`hidden 2xl:block hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/contact' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
               >
                 Contact Us
               </button>
 
               <button 
                 onClick={() => handleNavClick('/faq')}
-                className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/faq' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+                className={`hidden 2xl:block hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${path === '/faq' ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
               >
                 FAQ
               </button>
 
-              <button 
-                onClick={() => handleNavClick('/account/daily-milk-tracking')}
-                className={`hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 flex items-center gap-1 ${path.includes('milk-tracking') ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' : ''}`}
+              {/* "More ▾" Dropdown for Windows Tab / Laptops below 2xl */}
+              <div 
+                className="relative 2xl:hidden"
+                onMouseEnter={() => setIsMoreDropdownOpen(true)}
+                onMouseLeave={() => setIsMoreDropdownOpen(false)}
               >
-                <Calendar className="w-3.5 h-3.5 text-[#C2A36C]" />
-                <span>Milk Calendar</span>
-              </button>
+                <button 
+                  onClick={() => setIsMoreDropdownOpen(!isMoreDropdownOpen)}
+                  className={`flex items-center gap-0.5 hover:text-[#A34F37] transition-colors whitespace-nowrap py-1 ${
+                    ['/our-story', '/quality', '/contact', '/faq'].includes(path) 
+                      ? 'text-[#A34F37] font-bold border-b-2 border-[#A34F37]' 
+                      : ''
+                  }`}
+                >
+                  <span>More</span>
+                  <ChevronDown className="w-3 h-3 text-[#A34F37]" />
+                </button>
+
+                {isMoreDropdownOpen && (
+                  <div className="absolute top-full left-0 w-44 bg-[#FAF6EE] border border-[#D8C9AD] shadow-xl rounded-2xl py-2 z-50 animate-in fade-in slide-in-from-top-1">
+                    <button
+                      onClick={() => handleNavClick('/our-story')}
+                      className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-[#D8C9AD]/30 flex items-center gap-2 ${path === '/our-story' ? 'text-[#A34F37] font-bold' : 'text-[#263D30]'}`}
+                    >
+                      <span>Our Story</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('/quality')}
+                      className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-[#D8C9AD]/30 flex items-center gap-2 ${path === '/quality' ? 'text-[#A34F37] font-bold' : 'text-[#263D30]'}`}
+                    >
+                      <span>Our Quality</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('/contact')}
+                      className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-[#D8C9AD]/30 flex items-center gap-2 ${path === '/contact' ? 'text-[#A34F37] font-bold' : 'text-[#263D30]'}`}
+                    >
+                      <span>Contact Us</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('/faq')}
+                      className={`w-full text-left px-4 py-2 text-xs font-semibold hover:bg-[#D8C9AD]/30 flex items-center gap-2 ${path === '/faq' ? 'text-[#A34F37] font-bold' : 'text-[#263D30]'}`}
+                    >
+                      <span>FAQ</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </nav>
           </div>
 
           {/* RIGHT SECTION: Search Bar + Account + Subscription + Cart Basket */}
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 lg:gap-2 xl:gap-2.5 shrink-0 flex-nowrap">
             
-            {/* Desktop Search Bar */}
-            <div className="hidden xl:flex w-44 2xl:w-56">
+            {/* Desktop Full Search Bar (Visible only on 2xl) */}
+            <div className="hidden 2xl:flex w-44">
               <form onSubmit={handleSearchSubmit} className="relative w-full">
                 <input
                   type="text"
@@ -279,55 +331,75 @@ export const Navbar: React.FC = () => {
               </form>
             </div>
 
-            {/* Search Trigger for Mobile / Tablet */}
+            {/* Search Trigger Icon for Windows Tab, Tablet & Mobile */}
             <button
               onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="xl:hidden p-2 text-[#302C26] hover:text-[#A34F37] transition-colors"
+              className="2xl:hidden p-1.5 sm:p-2 text-[#302C26] hover:text-[#A34F37] transition-colors rounded-xl hover:bg-[#D8C9AD]/20 cursor-pointer shrink-0"
               title="Search provisions"
             >
-              <Search className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
             </button>
 
             {/* Wishlist Icon */}
             <button
               onClick={() => handleNavClick('/wishlist')}
-              className="hidden sm:flex p-2 text-[#302C26] hover:text-[#A34F37] transition-colors relative"
+              className="hidden md:flex p-1.5 sm:p-2 text-[#302C26] hover:text-[#A34F37] transition-colors relative rounded-xl hover:bg-[#D8C9AD]/20 cursor-pointer shrink-0"
               title="Saved items"
             >
-              <Heart className="w-5 h-5" />
+              <Heart className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               {wishlist.length > 0 && (
-                <span className="absolute top-1 right-1 w-4 h-4 bg-[#A34F37] text-white text-[9px] font-bold rounded-full flex items-center justify-center font-mono">
+                <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#A34F37] text-white text-[9px] font-bold rounded-full flex items-center justify-center font-mono">
                   {wishlist.length}
                 </span>
               )}
             </button>
 
-            {/* Customer Account Button */}
+            {/* Customer / Admin / Manager / Dealer Account Button */}
             <button
-              onClick={() => handleNavClick(currentUser.role === 'admin' ? '/admin' : '/account')}
-              className="p-1.5 sm:p-2 text-[#302C26] hover:text-[#A34F37] transition-colors flex items-center gap-1.5 rounded-xl hover:bg-[#D8C9AD]/20"
-              title="Customer Account"
+              onClick={() => {
+                if (currentUser.role === 'admin') {
+                  handleNavClick('/admin/dashboard');
+                } else if (currentUser.role === 'manager') {
+                  handleNavClick('/manager/dashboard');
+                } else if (currentUser.role === 'dealer') {
+                  handleNavClick('/dealer/dashboard');
+                } else if (currentUser.email && currentUser.id !== 'guest') {
+                  handleNavClick('/account');
+                } else {
+                  handleNavClick('/login');
+                }
+              }}
+              className="p-1 sm:p-1.5 text-[#302C26] hover:text-[#A34F37] transition-colors flex items-center gap-1.5 rounded-xl hover:bg-[#D8C9AD]/20 cursor-pointer shrink-0"
+              title={currentUser.email ? `${currentUser.fullName} (${currentUser.role})` : 'Sign In'}
             >
-              <User className="w-5 h-5" />
-              <span className="hidden sm:inline text-xs font-semibold">{currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Account'}</span>
+              <User className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[#263D30] shrink-0" />
+              <div className="hidden sm:flex flex-col text-left leading-tight">
+                <span className="text-xs font-bold text-[#263D30] whitespace-nowrap">
+                  {currentUser.fullName ? currentUser.fullName.split(' ')[0] : 'Sign In'}
+                </span>
+                <span className="text-[8.5px] uppercase tracking-wider text-[#A34F37] font-semibold whitespace-nowrap">
+                  {currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'manager' ? 'Manager' : currentUser.role === 'dealer' ? 'Dealer' : 'Patron'}
+                </span>
+              </div>
             </button>
 
             {/* Quick Morning Subscription Trigger */}
             <button
               onClick={() => setIsSubscriptionModalOpen(true)}
-              className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] rounded-xl text-xs font-bold transition-all shadow-xs border border-[#C2A36C]/40 whitespace-nowrap shrink-0 group cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] rounded-xl text-xs font-bold transition-all shadow-xs border border-[#C2A36C]/40 whitespace-nowrap shrink-0 group cursor-pointer"
               title="Subscribe to daily morning A2 milk delivery"
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#C2A36C] group-hover:rotate-12 transition-transform" />
-              <span>Subscription</span>
+              <Sparkles className="w-3.5 h-3.5 text-[#C2A36C] group-hover:rotate-12 transition-transform shrink-0" />
+              <span className="hidden xl:inline">Subscription</span>
+              <span className="xl:hidden">Subscribe</span>
             </button>
 
             {/* Shopping Bag Button (Primary Action) */}
             <button
               onClick={() => handleNavClick('/cart')}
-              className="bg-[#FAF6EE] text-[#263D30] hover:bg-[#F3EDE1] border border-[#D8C9AD] px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 sm:gap-2 shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
+              className="bg-[#FAF6EE] text-[#263D30] hover:bg-[#F3EDE1] border border-[#D8C9AD] px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 sm:gap-2 shadow-xs whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <ShoppingBag className="w-4 h-4 text-[#A34F37]" />
+              <ShoppingBag className="w-4 h-4 text-[#A34F37] shrink-0" />
               <span className="hidden sm:inline">Basket</span>
               <span className="bg-[#263D30] text-[#FAF6EE] font-bold font-mono text-[10px] px-1.5 py-0.2 rounded-full">
                 {totalCartCount}
@@ -634,7 +706,34 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between text-[11px] text-[#302C26]/75 px-1 pt-1 border-t border-[#D8C9AD]/40">
+                {/* Separate Portals Section */}
+                <div className="pt-2 border-t border-[#D8C9AD]/50">
+                  <div className="text-[10px] uppercase font-bold text-[#302C26]/50 mb-1.5 px-0.5 tracking-wider">
+                    Separate Access Portals
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-[10px]">
+                    <button
+                      onClick={() => handleNavClick('/manager/login')}
+                      className="py-1.5 px-2 bg-[#263D30]/10 hover:bg-[#263D30]/20 text-[#263D30] font-bold rounded-lg text-center transition-colors cursor-pointer border border-[#263D30]/20"
+                    >
+                      📋 Manager
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('/admin/login')}
+                      className="py-1.5 px-2 bg-[#A34F37]/10 hover:bg-[#A34F37]/20 text-[#A34F37] font-bold rounded-lg text-center transition-colors cursor-pointer border border-[#A34F37]/20"
+                    >
+                      🛡️ Admin
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('/dealer/login')}
+                      className="py-1.5 px-2 bg-[#C2A36C]/20 hover:bg-[#C2A36C]/35 text-[#5C4524] font-bold rounded-lg text-center transition-colors cursor-pointer border border-[#C2A36C]/40"
+                    >
+                      🏢 Dealer
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-[#302C26]/75 px-1 pt-1">
                   <a 
                     href="https://wa.me/917067672604?text=Hello%20Dugdhsar%2C%20I%20have%20an%20enquiry%20regarding%20A2%20milk%20delivery."
                     target="_blank"
@@ -643,12 +742,7 @@ export const Navbar: React.FC = () => {
                   >
                     <span>WhatsApp: +91 7067672604</span>
                   </a>
-                  <button 
-                    onClick={() => handleNavClick('/admin')}
-                    className="text-[#A34F37] font-semibold hover:underline cursor-pointer"
-                  >
-                    Admin
-                  </button>
+                  <span className="text-[#302C26]/40 text-[10px]">Vedic Seoni Dairy</span>
                 </div>
               </div>
             </div>

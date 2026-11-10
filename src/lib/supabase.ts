@@ -2,11 +2,12 @@ import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-
 
 // Retrieve credentials from environment variables or localStorage
 export const getSupabaseConfig = () => {
-  const envUrl = import.meta.env.VITE_SUPABASE_URL;
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const metaEnv = typeof import.meta !== 'undefined' && (import.meta as any).env ? (import.meta as any).env : {};
+  const envUrl = metaEnv.VITE_SUPABASE_URL;
+  const envKey = metaEnv.VITE_SUPABASE_ANON_KEY;
   
-  const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('dugdhsar_supabase_url') : null;
-  const storedKey = typeof window !== 'undefined' ? localStorage.getItem('dugdhsar_supabase_anon_key') : null;
+  const storedUrl = typeof window !== 'undefined' && typeof localStorage !== 'undefined' ? localStorage.getItem('dugdhsar_supabase_url') : null;
+  const storedKey = typeof window !== 'undefined' && typeof localStorage !== 'undefined' ? localStorage.getItem('dugdhsar_supabase_anon_key') : null;
 
   const url = storedUrl || envUrl || '';
   const key = storedKey || envKey || '';
@@ -61,7 +62,7 @@ export interface LocalUser {
   email: string;
   fullName: string;
   phone: string;
-  role: 'customer' | 'admin' | 'dealer';
+  role: 'customer' | 'admin' | 'manager' | 'dealer';
   avatarUrl?: string;
   authProvider?: 'password' | 'google' | 'otp';
   createdAt: string;
@@ -94,6 +95,17 @@ export const getLocalUsers = (): LocalUser[] => {
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
           authProvider: 'google',
           createdAt: new Date().toISOString()
+        },
+        {
+          id: 'usr-manager-1',
+          email: 'manager@dugdhsar.in',
+          fullName: 'Harish Verma (Operations Manager)',
+          phone: '+91 7067672604',
+          role: 'manager',
+          avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
+          authProvider: 'password',
+          createdAt: new Date().toISOString(),
+          passwordHash: 'manager123'
         },
         {
           id: 'usr-admin-1',
@@ -277,7 +289,7 @@ export const authService = {
   },
 
   // Sign In with Google (Unified OAuth & Immediate Session)
-  async signInWithGoogle(customEmail?: string, customName?: string, customAvatar?: string, forcedRole?: 'customer' | 'admin' | 'dealer'): Promise<{ success: boolean; user?: LocalUser; error?: string }> {
+  async signInWithGoogle(customEmail?: string, customName?: string, customAvatar?: string, forcedRole?: 'customer' | 'admin' | 'manager' | 'dealer'): Promise<{ success: boolean; user?: LocalUser; error?: string }> {
     const { isConfigured } = getSupabaseConfig();
     const client = getSupabase();
 
@@ -300,23 +312,29 @@ export const authService = {
 
     // Direct Google authentication session handler
     const email = (customEmail || 'sumitpawar65005@gmail.com').toLowerCase().trim();
-    const name = customName || (email.startsWith('admin') ? 'Dugdhsar Super Admin' : (email.includes('sumit') ? 'Sumit Pawar' : email.split('@')[0]));
+    const name = customName || (email.startsWith('admin') ? 'Dugdhsar Super Admin' : (email.includes('manager') ? 'Harish Verma (Manager)' : (email.includes('sumit') ? 'Sumit Pawar' : email.split('@')[0])));
     const avatar = customAvatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=124a86,5c922b,a87520`;
     
     // Determine role: if forcedRole provided use it; otherwise check email rules
-    let role: 'customer' | 'admin' | 'dealer' = 'customer';
+    let role: 'customer' | 'admin' | 'manager' | 'dealer' = 'customer';
     if (forcedRole) {
       role = forcedRole;
-    } else if (email.includes('admin') || email === 'sumitpawar65005@gmail.com' || email.endsWith('@dugdhsar.in')) {
+    } else if (email.includes('manager')) {
+      role = 'manager';
+    } else if (email.includes('admin') || email === 'sumitpawar65005@gmail.com') {
       role = 'admin';
     }
 
     const users = getLocalUsers();
     let user = users.find(u => u.email.toLowerCase() === email);
 
+    // Deterministic unique user ID tied strictly to this email
+    const emailSlug = email.replace(/[^a-z0-9]/g, '_');
+    const deterministicId = `usr_${emailSlug}`;
+
     if (!user) {
       user = {
-        id: 'usr-g-' + Date.now(),
+        id: deterministicId,
         email,
         fullName: name,
         phone: '+91 7067672604',
@@ -327,9 +345,11 @@ export const authService = {
       };
       users.push(user);
     } else {
-      // Update with Google provider and role if admin login
+      // Update with Google provider and role if specified
+      user.id = user.id || deterministicId;
       user.authProvider = 'google';
       if (forcedRole) user.role = forcedRole;
+      if (name && !user.fullName) user.fullName = name;
       if (avatar && !user.avatarUrl) user.avatarUrl = avatar;
     }
 

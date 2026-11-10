@@ -1,0 +1,15 @@
+# .dev.vars.example (local testing ke liye; asli .dev.vars git me mat daalna)
+IG_ACCESS_TOKEN=your_instagram_long_lived_token
+IG_VERIFY_TOKEN=any_random_string_you_choose
+IG_APP_SECRET=your_meta_app_secret
+GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+GOOGLE_SERVICE_ACCOUNT_EMAIL=name@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC...\n-----END PRIVATE KEY-----\n"
+GOOGLE_SHEET_ID=your_sheet_id
+
+# Optional application secrets
+JWT_SECRET=dugdhsar_production_jwt_signing_secret_min_32_characters_long
+RAZORPAY_KEY_ID=rzp_live_dugdhsar_example
+RAZORPAY_KEY_SECRET=your_razorpay_live_secret_key_here
+SUPER_ADMIN_EMAILS=sumitpawar65005@gmail.com,admin@dugdhsar.in
+DEALER_EMAILS=dealer@dugdhsar.in,manager@dugdhsar.in

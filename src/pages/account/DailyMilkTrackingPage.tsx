@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AccountLayout } from './AccountLayout';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
@@ -46,23 +46,34 @@ export interface DayDeliveryRecord {
 }
 
 export const DailyMilkTrackingPage: React.FC = () => {
-  const { subscriptions, toggleSubscriptionPause, currentUser } = useStore();
+  const { 
+    userSubscriptions, 
+    toggleSubscriptionPause, 
+    currentUser, 
+    addSubscription,
+    isSubscriptionModalOpen,
+    setIsSubscriptionModalOpen 
+  } = useStore();
   const { navigate } = useRouter();
 
-  // Current active subscription
-  const activeSub = subscriptions[0] || {
-    id: 'sub-main',
-    productName: 'Fresh A2 Gir Cow Whole Milk',
-    variant: '1 Litre Glass Bottle',
-    quantity: 1,
-    frequency: 'daily',
-    deliverySlot: '5:00 AM - 10:00 AM',
-    status: 'active',
-    nextDelivery: 'Tomorrow, 5:00 AM - 10:00 AM',
-    customerName: currentUser?.fullName || 'Ramesh Patel',
-    customerPhone: currentUser?.phone || '+91 7067672604',
-    deliveryAddress: 'House 42, Barghat Road, Sufi Nagar, Seoni, MP — 480661'
-  };
+  // Current active subscription strictly scoped to logged in patron
+  const activeSub = userSubscriptions[0] || null;
+
+  // Auto-pop subscription modal when user lands on calendar without an active subscription
+  useEffect(() => {
+    if (!activeSub) {
+      const timer = setTimeout(() => {
+        setIsSubscriptionModalOpen(true);
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [activeSub, setIsSubscriptionModalOpen]);
+
+  // New subscription state for fresh patrons
+  const [newSubProduct, setNewSubProduct] = useState('DUGDHSAR Fresh A2 Desi Cow Whole Milk');
+  const [newSubQty, setNewSubQty] = useState(1);
+  const [newSubSlot, setNewSubSlot] = useState('Morning Delivery (5:00 AM - 10:00 AM)');
+  const [isCreatingSub, setIsCreatingSub] = useState(false);
 
   // Month navigation state
   const today = new Date();
@@ -82,7 +93,6 @@ export const DailyMilkTrackingPage: React.FC = () => {
 
   // Daily dynamic override records in state (stored by YYYY-MM-DD)
   const [overrides, setOverrides] = useState<Record<string, Partial<DayDeliveryRecord>>>({
-    // Pre-seed a realistic missed delivery record for demonstration
     [`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-02`]: {
       status: 'missed',
       deliveredQty: 0,
@@ -97,6 +107,173 @@ export const DailyMilkTrackingPage: React.FC = () => {
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
+
+  // Fresh user state when no active subscription is yet created for this Google user
+  if (!activeSub) {
+    return (
+      <AccountLayout>
+        <div className="bg-[#FAF6EE] p-6 sm:p-10 rounded-3xl border border-[#D8C9AD] shadow-xs max-w-3xl mx-auto">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-[#263D30] text-[#C2A36C] flex items-center justify-center mx-auto mb-3 shadow-md">
+              <Milk className="w-8 h-8" />
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#A34F37] bg-[#A34F37]/10 px-2.5 py-0.5 rounded-full border border-[#A34F37]/20">
+              Subscription Required / सब्सक्रिप्शन आवश्यक
+            </span>
+            <h1 className="font-serif text-2xl sm:text-3xl text-[#263D30] font-bold mt-2">
+              Start Your Daily A2 Milk Subscription
+            </h1>
+            <p className="text-xs sm:text-sm text-[#302C26]/75 mt-2 max-w-md mx-auto leading-relaxed">
+              Welcome, <strong className="text-[#263D30]">{currentUser.fullName}</strong>. Your daily milk delivery calendar is generated automatically as soon as you start your regular morning milk subscription.
+            </p>
+
+            {/* Quick Trigger Modal CTA */}
+            <div className="mt-5 max-w-md mx-auto">
+              <button
+                type="button"
+                onClick={() => setIsSubscriptionModalOpen(true)}
+                className="w-full py-3.5 px-6 bg-[#263D30] hover:bg-[#1E3026] text-[#FAF6EE] rounded-2xl font-serif font-bold text-sm flex items-center justify-center space-x-2 shadow-lg transition-transform active:scale-98 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-[#C2A36C]" />
+                <span>Open Subscription Model / सब्सक्रिप्शन चुनें</span>
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </button>
+              <p className="text-[10px] text-[#302C26]/60 mt-1.5">
+                Takes 30 seconds · Zero deposit · 1-Tap pause anytime
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[#F8F4EC] p-6 rounded-2xl border border-[#D8C9AD] space-y-5">
+            <div className="flex items-center justify-between border-b border-[#D8C9AD] pb-3">
+              <h2 className="text-xs font-bold text-[#263D30] uppercase tracking-wider">
+                Or Configure Directly Below:
+              </h2>
+              <span className="text-[10px] font-medium text-[#C2A36C] bg-[#263D30] px-2 py-0.5 rounded-full">
+                Seoni Direct Cold-Chain
+              </span>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#263D30] mb-2">
+                1. Select Pure A2 Gir Cow Milk:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewSubProduct('DUGDHSAR Fresh A2 Desi Cow Whole Milk')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    newSubProduct.includes('Whole')
+                      ? 'border-[#263D30] bg-[#FAF6EE] ring-2 ring-[#263D30]/20'
+                      : 'border-[#D8C9AD] bg-white hover:border-[#263D30]/50'
+                  }`}
+                >
+                  <span className="font-bold text-xs text-[#263D30] block">Whole A2 Milk (4.5% Fat)</span>
+                  <span className="text-[11px] text-[#A34F37] font-semibold mt-0.5 block">₹170 / Litre</span>
+                  <span className="text-[10px] text-[#302C26]/60 mt-1 block">Full-cream raw Vedic Gir milk in sterilized glass bottle.</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewSubProduct('DUGDHSAR Fresh A2 Light Skimmed Milk')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    newSubProduct.includes('Skimmed')
+                      ? 'border-[#263D30] bg-[#FAF6EE] ring-2 ring-[#263D30]/20'
+                      : 'border-[#D8C9AD] bg-white hover:border-[#263D30]/50'
+                  }`}
+                >
+                  <span className="font-bold text-xs text-[#263D30] block">Light Skimmed A2 Milk (1.5% Fat)</span>
+                  <span className="text-[11px] text-[#A34F37] font-semibold mt-0.5 block">₹110 / Litre</span>
+                  <span className="text-[10px] text-[#302C26]/60 mt-1 block">Low calorie, light cream, easy digestion for fitness.</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#263D30] mb-2">
+                2. Daily Delivery Quantity:
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map((qty) => (
+                  <button
+                    key={qty}
+                    type="button"
+                    onClick={() => setNewSubQty(qty)}
+                    className={`py-3 rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                      newSubQty === qty
+                        ? 'bg-[#263D30] text-[#FAF6EE] border-[#263D30]'
+                        : 'bg-white text-[#263D30] border-[#D8C9AD] hover:bg-[#FAF6EE]'
+                    }`}
+                  >
+                    {qty} Litre{qty > 1 ? 's' : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#263D30] mb-2">
+                3. Delivery Slot in Seoni, MP:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewSubSlot('Morning Delivery (5:00 AM - 10:00 AM)')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    newSubSlot.includes('Morning')
+                      ? 'border-[#263D30] bg-[#FAF6EE] ring-2 ring-[#263D30]/20 font-bold'
+                      : 'border-[#D8C9AD] bg-white'
+                  }`}
+                >
+                  <span className="text-xs text-[#263D30] block">Dawn Morning Drop</span>
+                  <span className="text-[11px] text-[#302C26]/60">5:00 AM – 10:00 AM</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewSubSlot('Evening Fresh Delivery (6:00 PM - 10:00 PM)')}
+                  className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                    newSubSlot.includes('Evening')
+                      ? 'border-[#263D30] bg-[#FAF6EE] ring-2 ring-[#263D30]/20 font-bold'
+                      : 'border-[#D8C9AD] bg-white'
+                  }`}
+                >
+                  <span className="text-xs text-[#263D30] block">Evening Fresh Drop</span>
+                  <span className="text-[11px] text-[#302C26]/60">6:00 PM – 10:00 PM</span>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isCreatingSub}
+              onClick={() => {
+                setIsCreatingSub(true);
+                addSubscription({
+                  productName: newSubProduct,
+                  variant: `${newSubQty} Litre Glass Bottle`,
+                  quantity: newSubQty,
+                  frequency: 'daily',
+                  deliverySlot: newSubSlot,
+                  customerName: currentUser.fullName || 'Valued Patron',
+                  customerPhone: currentUser.phone || '+91 7067672604',
+                  deliveryAddress: 'House 42, Barghat Road, Sufi Nagar, Seoni, MP 480661',
+                  startDate: new Date().toISOString().split('T')[0],
+                  status: 'active',
+                  nextDelivery: 'Tomorrow, 5:00 AM - 10:00 AM'
+                });
+                setIsCreatingSub(false);
+              }}
+              className="w-full py-4 bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-4"
+            >
+              <Sparkles className="w-4 h-4 text-[#C2A36C]" />
+              <span>{isCreatingSub ? 'Activating Subscription...' : 'Activate Daily Milk Subscription (Pay Weekly / Monthly)'}</span>
+              <ArrowRight className="w-4 h-4 text-[#C2A36C]" />
+            </button>
+          </div>
+        </div>
+      </AccountLayout>
+    );
+  }
 
   // Generate dynamic records for all days in month
   const calendarDays: DayDeliveryRecord[] = [];

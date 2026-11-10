@@ -3,7 +3,7 @@ import { HeroSection } from '../../components/HeroSection';
 import { PasteurizationSection } from '../../components/PasteurizationSection';
 import { WhyLoveSection } from '../../components/WhyLoveSection';
 import { NutritionMatrixSection } from '../../components/NutritionMatrixSection';
-import { InstagramSection } from '../../components/InstagramSection';
+import { InstagramFeed } from '../../components/InstagramFeed';
 import { ProductsSection } from '../../components/ProductsSection';
 import { CustomerQuickActionsSection } from '../../components/CustomerQuickActionsSection';
 import { ShopMapSection } from '../../components/ShopMapSection';
@@ -29,8 +29,8 @@ export const HomePage: React.FC = () => {
       {/* Nutrition Matrix: One Glass of A2 Equals */}
       <NutritionMatrixSection />
 
-      {/* Instagram Community Grid (Connected to @dugdhsar.in) */}
-      <InstagramSection />
+      {/* Instagram Feed Component (Automatically fetches from Instagram Graph API @dugdhsar.in) */}
+      <InstagramFeed />
 
       {/* Physical Shop Location & Interactive Google Map (Barghat Rd, Seoni) */}
       <ShopMapSection />

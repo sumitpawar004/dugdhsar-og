@@ -663,7 +663,9 @@ export const INITIAL_REVIEWS: Review[] = [
     comment: 'Having lived abroad for 10 years, returning to regular supermarket milk was terrible for my gut. Dugdhsar A2 milk changed everything. The rich cream layer on top and naturally sweet aroma remind me of my grandmother’s haveli. 10/10.',
     verifiedPurchase: true,
     isApproved: true,
-    createdAt: '2026-02-14T08:30:00Z'
+    createdAt: '2026-02-14T08:30:00Z',
+    tags: ['Natural Malai Layer', 'Glass Bottle', 'Easy on Digestion'],
+    helpfulCount: 28
   },
   {
     id: 'rev-2',
@@ -676,7 +678,9 @@ export const INITIAL_REVIEWS: Review[] = [
     comment: 'As an Ayurvedic practitioner, true Bilona ghee is essential for medicinal preparations. Dugdhsar’s purity reports showing zero vegetable adulteration and high butyric acid are completely legitimate. The aroma when heated is intoxicating.',
     verifiedPurchase: true,
     isApproved: true,
-    createdAt: '2026-02-18T11:20:00Z'
+    createdAt: '2026-02-18T11:20:00Z',
+    tags: ['Danedar Aroma', 'Ayurvedic Purity', 'Bilona Churning'],
+    helpfulCount: 42
   },
   {
     id: 'rev-3',
@@ -689,7 +693,69 @@ export const INITIAL_REVIEWS: Review[] = [
     comment: 'Commercial paneer is always filled with cornstarch or hydrogenated fat. Dugdhsar’s malai paneer literally melts on the tongue. My children eat it raw with just a pinch of rock salt.',
     verifiedPurchase: true,
     isApproved: true,
-    createdAt: '2026-02-21T14:45:00Z'
+    createdAt: '2026-02-21T14:45:00Z',
+    tags: ['Melts in Mouth', 'Kids Favorite', 'Pure A2 Malai'],
+    helpfulCount: 19
+  },
+  {
+    id: 'rev-4',
+    productId: 'dug-whole-milk',
+    productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+    userName: 'Rameshwar Patidar',
+    userCity: 'Sanjay Vihar Colony, Seoni',
+    rating: 5,
+    title: 'Har subah 7 baje taaza doodh glass bottle me',
+    comment: 'Seoni me itna shuddh Gir cow ka A2 milk milna ashirwaad jaisa hai. Bottle tamper proof hoti hai aur malai itni moti aati hai ki hum ghar par hi ghee nikaal lete hain. Hamare parivar ka daily 2 litre ka subscription 2 saal se chal raha hai.',
+    verifiedPurchase: true,
+    isApproved: true,
+    createdAt: '2026-02-25T07:15:00Z',
+    tags: ['Punctual Morning Dispatch', 'Chilled Glass Bottle', 'Moti Malai'],
+    helpfulCount: 35
+  },
+  {
+    id: 'rev-5',
+    productId: 'dug-probiotic-curd',
+    productName: 'DUGDHSAR Vedic A2 Probiotic Curd (Dahi)',
+    userName: 'Pooja Agrawal',
+    userCity: 'Barghat Road, Seoni',
+    rating: 5,
+    title: 'Bilkul halwai jaisa mitha aur gaadha dahi',
+    comment: 'Market ke dahi me hamesha artificial stabilizer hota hai. Dugdhsar ka earthen pot curd bilkul natural mitha hai, bilkul bhi khatta nahi lagta. Dopehar ke khane ke saath roz ka niyam ban gaya hai.',
+    verifiedPurchase: true,
+    isApproved: true,
+    createdAt: '2026-03-01T12:10:00Z',
+    tags: ['Natural Probiotic', 'Earthen Pot Taste', 'No Water'],
+    helpfulCount: 16
+  },
+  {
+    id: 'rev-6',
+    productId: 'dug-white-butter',
+    productName: 'DUGDHSAR Fresh A2 White Makhan (Butter)',
+    userName: 'Harish Chawla',
+    userCity: 'Sufi Nagar, Seoni',
+    rating: 5,
+    title: 'Ghar ke handi ke makhan ki yaad dila di',
+    comment: 'Yellow salted butter chhod kar ab hum Dugdhsar ka safed makhan hi use karte hain. Paranthe par rakhne se jo khushboo aati hai wo lajawab hai. Pure Vedic Gir cow milk se bana hone ki wajah se pachan me bohot aasaan hai.',
+    verifiedPurchase: true,
+    isApproved: true,
+    createdAt: '2026-03-03T09:40:00Z',
+    tags: ['Pure White Makhan', 'Authentic Taste', 'Zero Preservatives'],
+    helpfulCount: 22
+  },
+  {
+    id: 'rev-7',
+    productId: 'dug-vedic-khoya',
+    productName: 'DUGDHSAR Slow-Simmered Vedic A2 Khoya (Mawa)',
+    userName: 'Smt. Gayatri Devi',
+    userCity: 'Civil Lines, Seoni',
+    rating: 5,
+    title: 'Gulab jamun aur barfi ke liye no. 1 khoya',
+    comment: 'Tyoharon me bazaar ka khoya lene se darr lagta tha. Dugdhsar ka lohe ki kadhai me dheemi aanch par pakaya gaya A2 khoya itna daanedar aur shuddh hai ki mithai ka swad 10 guna badh gaya. Purity report bhi certified mili.',
+    verifiedPurchase: true,
+    isApproved: true,
+    createdAt: '2026-03-05T16:20:00Z',
+    tags: ['Danedar Texture', 'Slow Cooked', 'Pure A2 Cow Milk'],
+    helpfulCount: 14
   }
 ];
 

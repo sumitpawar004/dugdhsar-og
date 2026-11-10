@@ -20,8 +20,10 @@ export interface Profile {
   email: string;
   fullName: string;
   phone: string;
-  role: 'customer' | 'admin' | 'operations' | 'support';
+  role: 'customer' | 'admin' | 'manager' | 'operations' | 'support' | 'dealer';
   avatarUrl?: string;
+  authProvider?: 'password' | 'google' | 'otp';
+  loyaltyPoints?: number;
   createdAt: string;
 }
 
@@ -402,6 +404,8 @@ export interface Review {
   verifiedPurchase: boolean;
   isApproved: boolean;
   createdAt: string;
+  tags?: string[];
+  helpfulCount?: number;
 }
 
 // 22. enquiries
@@ -487,6 +491,8 @@ export interface BatchPurityData {
 
 export interface Subscription {
   id: string;
+  userId?: string;
+  customerEmail?: string;
   productName: string;
   variant: string;
   quantity: number;
@@ -497,6 +503,6 @@ export interface Subscription {
   deliveryAddress?: string;
   notes?: string;
   startDate: string;
-  status: 'active' | 'paused';
+  status: 'active' | 'paused' | 'cancelled';
   nextDelivery: string;
 }

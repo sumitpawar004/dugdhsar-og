@@ -7,11 +7,20 @@ import { ArrowLeft, Truck, AlertCircle, CheckCircle2, Clock, MapPin, MessageCirc
 import { getWhatsAppOrderUrl } from '../../utils/whatsapp';
 
 export const OrderDetailPage: React.FC = () => {
-  const { orders, cancelOrder, getOrderById } = useStore();
+  const { cancelOrder, getOrderById, currentUser } = useStore();
   const { params, navigate } = useRouter();
 
   const orderId = params.id;
-  const order = getOrderById(orderId) || orders[0];
+  const targetOrder = getOrderById(orderId);
+
+  // Strict ownership check: Only allow customer who owns the order or an Admin
+  const isAuthorized = targetOrder && (
+    currentUser.role === 'admin' ||
+    targetOrder.userId === currentUser.id ||
+    (Boolean(currentUser.email) && targetOrder.customerEmail?.toLowerCase() === currentUser.email.toLowerCase())
+  );
+
+  const order = isAuthorized ? targetOrder : null;
 
   const [cancelStatus, setCancelStatus] = useState<string | null>(null);
 
@@ -19,9 +28,15 @@ export const OrderDetailPage: React.FC = () => {
     return (
       <AccountLayout>
         <div className="bg-[#FAF6EE] p-12 text-center rounded-3xl border border-[#D8C9AD]">
-          <h2 className="text-xl font-serif text-[#263D30] mb-2">Order not found</h2>
-          <button onClick={() => navigate('/account/orders')} className="text-xs text-[#A34F37] hover:underline">
-            Back to orders
+          <h2 className="text-xl font-serif text-[#263D30] mb-2">Order Not Found</h2>
+          <p className="text-xs text-[#302C26]/70 mb-4">
+            This order ID is either invalid or belongs to another patron account.
+          </p>
+          <button 
+            onClick={() => navigate('/account/orders')} 
+            className="px-4 py-2 bg-[#263D30] text-[#FAF6EE] rounded-xl text-xs font-semibold hover:bg-[#1A2B22] cursor-pointer"
+          >
+            ← Back to Your Orders
           </button>
         </div>
       </AccountLayout>

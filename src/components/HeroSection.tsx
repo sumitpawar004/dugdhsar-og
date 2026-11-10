@@ -53,7 +53,7 @@ export const HeroSection: React.FC = () => {
     },
     {
       id: 4,
-      image: 'https://images.unsplash.com/photo-1527153857715-3908f2ae5e81?auto=format&fit=crop&w=1920&q=80',
+      image: 'https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?auto=format&fit=crop&w=1920&q=80',
       badge: '🏡 Direct From Sanctuary Gaushala',
       title: 'From Our Dairy to Your Family.',
       subtitle: 'Strictly zero hormones, zero oxytocin, zero synthetic emulsifiers. Sealed in sterile glass bottles daily before 11:00 AM.',
@@ -61,6 +61,17 @@ export const HeroSection: React.FC = () => {
       primaryAction: () => setIsSubscriptionModalOpen(true),
       secondaryBtn: 'Our Quality Assay',
       secondaryAction: () => navigate('/quality')
+    },
+    {
+      id: 5,
+      image: '/assets/vedic_gir_cow_meadow.jpg',
+      badge: '🌅 60 Years Heritage · Ahimsa Sukla Gaushala',
+      title: 'Vedic Purity in Every Dawn Drop.',
+      subtitle: 'Indigenous Gir cows grazing freely in sunlit Seoni pastures. Chilled to 4°C and delivered cold in sanitized glass bottles.',
+      primaryBtn: 'Start Morning Delivery',
+      primaryAction: () => setIsSubscriptionModalOpen(true),
+      secondaryBtn: 'Explore Products',
+      secondaryAction: () => navigate('/products')
     }
   ];
 
@@ -107,6 +118,9 @@ export const HeroSection: React.FC = () => {
             <img
               src={slide.image}
               alt={slide.title}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/assets/vedic_gir_cow_meadow.jpg';
+              }}
               className="w-full h-full object-cover object-center transform transition-transform duration-[7000ms] ease-out scale-105"
             />
             {/* Multi-layered cinematic gradient overlays for pristine text readability */}

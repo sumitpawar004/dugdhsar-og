@@ -3,10 +3,10 @@ import { AccountLayout } from './AccountLayout';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { formatPaise } from '../../types';
-import { Package, ArrowRight, Clock, MapPin, Truck } from 'lucide-react';
+import { Package, ArrowRight, Clock, MapPin, Truck, Star } from 'lucide-react';
 
 export const OrdersPage: React.FC = () => {
-  const { orders } = useStore();
+  const { userOrders: orders, products, openReviewModal } = useStore();
   const { navigate } = useRouter();
 
   return (
@@ -25,7 +25,16 @@ export const OrdersPage: React.FC = () => {
 
         {orders.length === 0 ? (
           <div className="py-16 text-center text-xs text-[#302C26]/70">
-            No orders found in your history.
+            <Package className="w-10 h-10 text-[#C2A36C] mx-auto mb-3" />
+            <p className="font-semibold text-sm text-[#263D30] mb-1">No orders found in your account.</p>
+            <p className="text-xs text-[#302C26]/60 mb-4">You haven't placed any orders with this Google account yet.</p>
+            <button
+              onClick={() => navigate('/products')}
+              className="px-5 py-2.5 bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] rounded-xl text-xs font-semibold inline-flex items-center gap-2 cursor-pointer shadow-xs"
+            >
+              <span>Explore Fresh Provisions</span>
+              <ArrowRight className="w-4 h-4 text-[#C2A36C]" />
+            </button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -48,8 +57,24 @@ export const OrdersPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="text-xs text-[#302C26]/60">
-                    Placed: {new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const firstItem = order.items[0];
+                        const matched = products.find(p => p.variants.some(v => v.id === firstItem?.variantId) || p.name === firstItem?.productNameSnapshot);
+                        openReviewModal(matched);
+                      }}
+                      className="text-[11px] font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Rate or write a review for products in this order"
+                    >
+                      <Star className="w-3 h-3 fill-[#C2A36C] text-[#C2A36C]" />
+                      <span>Review Items</span>
+                    </button>
+
+                    <div className="text-xs text-[#302C26]/60">
+                      Placed: {new Date(order.createdAt).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
                   </div>
                 </div>
 

@@ -24,7 +24,7 @@ export const PasteurizationSection: React.FC = () => {
         <div 
           className="absolute inset-0 opacity-10 grayscale pointer-events-none bg-cover bg-center"
           style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1527153857715-3908f2ae5e81?auto=format&fit=crop&w=1200&q=80')`
+            backgroundImage: `url('https://images.unsplash.com/photo-1584813470613-5b1c1cad3d69?auto=format&fit=crop&w=1200&q=80')`
           }}
         />
 

@@ -49,6 +49,14 @@ export const AdminDashboardPage: React.FC = () => {
     switchUserPersona,
     products, 
     orders, 
+    subscriptions,
+    updateSubscription,
+    deleteSubscription,
+    toggleSubscriptionPause,
+    cancelSubscription,
+    syncSubscriptionsToGoogleSheets,
+    exportSubscriptionsToCSV,
+    addSubscription,
     enquiries, 
     reviews, 
     auditLogs, 
@@ -80,16 +88,16 @@ export const AdminDashboardPage: React.FC = () => {
   // Active admin staff role for RBAC enforcement
   const [activeStaffRole, setActiveStaffRole] = useState<'super_admin' | 'operations_manager' | 'inventory_officer' | 'dispatch_lead' | 'customer_desk'>('super_admin');
 
-  // RBAC Permission Mapping
+  // RBAC Permission Mapping - Admin & Manager have full control over Products, Photos, Subscriptions, and Google Sheets Sync
   const rolePermissions: Record<string, string[]> = {
     super_admin: [
-      'dashboard', 'overview', 'products', 'categories', 'orders', 'customers', 
+      'dashboard', 'overview', 'products', 'categories', 'orders', 'subscriptions', 'google-sheets', 'customers', 
       'dealers', 'partners', 'inventory', 'deliveries', 'delivery', 'payments', 
       'offers', 'discounts', 'analytics', 'reports', 'reviews', 'content', 
       'staff', 'users', 'settings', 'audit-logs', 'qa-tests', 'enquiries'
     ],
     operations_manager: [
-      'dashboard', 'overview', 'products', 'categories', 'orders', 'customers', 
+      'dashboard', 'overview', 'products', 'categories', 'orders', 'subscriptions', 'google-sheets', 'customers', 
       'dealers', 'partners', 'inventory', 'deliveries', 'delivery', 'analytics', 
       'reports', 'enquiries', 'qa-tests'
     ],
@@ -97,10 +105,10 @@ export const AdminDashboardPage: React.FC = () => {
       'inventory', 'products', 'categories', 'qa-tests'
     ],
     dispatch_lead: [
-      'deliveries', 'delivery', 'orders', 'inventory'
+      'deliveries', 'delivery', 'orders', 'subscriptions', 'inventory'
     ],
     customer_desk: [
-      'customers', 'reviews', 'enquiries', 'orders'
+      'customers', 'subscriptions', 'reviews', 'enquiries', 'orders'
     ]
   };
 
@@ -210,6 +218,18 @@ export const AdminDashboardPage: React.FC = () => {
     supportEmail: siteSettings.email || 'support@dugdhsar.in'
   });
 
+  // Preset Vedic dairy product imagery
+  const DAIRY_IMAGE_PRESETS = [
+    { label: 'Fresh A2 Milk Bottle', url: '/assets/aistudio/image_fe6cbcdf.png' },
+    { label: 'A2 Gir Cow Farm Milking', url: '/assets/aistudio/image_de2ddb95.png' },
+    { label: 'Vedic Bilona Ghee Jar', url: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Fresh Malai Paneer', url: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Clay Pot Vedic Dahi', url: 'https://images.unsplash.com/photo-1571212515416-fef01fc43637?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Cultured White Makhan', url: 'https://images.unsplash.com/photo-1589985270747-8b09b531ce68?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Danedar Khoya / Mawa', url: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=800&auto=format&fit=crop&q=80' },
+    { label: 'Gir Cow Heritage Logo', url: '/assets/aistudio/dugdhsar_heritage_logo_clean.png' }
+  ];
+
   // Product Add & Edit Modals State
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [newProductForm, setNewProductForm] = useState({
@@ -219,7 +239,8 @@ export const AdminDashboardPage: React.FC = () => {
     priceRupees: 170,
     stockCount: 50,
     description: 'Pure certified A2 Gir cow dairy delivered fresh under cold-chain standards in Seoni.',
-    badge: 'Fresh Dawn Milking'
+    badge: 'Fresh Dawn Milking',
+    imageUrl: '/assets/aistudio/image_fe6cbcdf.png'
   });
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -231,9 +252,44 @@ export const AdminDashboardPage: React.FC = () => {
     stockCount: 0,
     description: '',
     badge: '',
+    imageUrl: '',
     isPublished: true,
     featured: false
   });
+
+  // Subscriptions & Google Sheets Management State
+  const [subSearchQuery, setSubSearchQuery] = useState('');
+  const [subFilterStatus, setSubFilterStatus] = useState<'all' | 'active' | 'paused' | 'cancelled'>('all');
+  const [editingSub, setEditingSub] = useState<any | null>(null);
+  const [editSubForm, setEditSubForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+    variant: '1 Litre Glass Bottle',
+    quantity: 1,
+    frequency: 'daily' as 'daily' | 'alternate' | 'weekdays',
+    deliverySlot: '5:00 AM - 10:00 AM',
+    deliveryAddress: '',
+    notes: '',
+    status: 'active' as 'active' | 'paused' | 'cancelled'
+  });
+  const [isAddSubOpen, setIsAddSubOpen] = useState(false);
+  const [newSubAdminForm, setNewSubAdminForm] = useState({
+    customerName: '',
+    customerPhone: '',
+    customerEmail: '',
+    productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+    variant: '1 Litre Glass Bottle',
+    quantity: 1,
+    frequency: 'daily' as 'daily' | 'alternate' | 'weekdays',
+    deliverySlot: '5:00 AM - 10:00 AM',
+    deliveryAddress: 'Sufi Nagar, Barghat Road, Seoni, MP 480661',
+    notes: 'Morning dawn drop in sterilized glass bottle'
+  });
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [sheetSyncResult, setSheetSyncResult] = useState<string | null>(null);
+  const [webhookInput, setWebhookInput] = useState(siteSettings.googleSheetsWebhookUrl || 'https://script.google.com/macros/s/AKfycbx-dugdhsar-a2-dairy-sync/exec');
 
   // Order Inspector & Manage Modal State
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
@@ -255,12 +311,14 @@ export const AdminDashboardPage: React.FC = () => {
   // Audit Logs Filter
   const [auditSearch, setAuditSearch] = useState('');
 
-  // 17 Modules in Exact Order of Requested URL Table
+  // 19 Complete Modules with Subscriptions and Google Sheets Sync
   const navModules = [
     { id: 'dashboard', path: '/admin/dashboard', label: 'Overview Dashboard', icon: BarChart3 },
     { id: 'products', path: '/admin/products', label: 'Manage Products', icon: Package },
     { id: 'categories', path: '/admin/categories', label: 'Categories', icon: Layers },
     { id: 'orders', path: '/admin/orders', label: 'Orders Management', icon: ShoppingCart },
+    { id: 'subscriptions', path: '/admin/subscriptions', label: 'Subscriptions Control', icon: RefreshCw },
+    { id: 'google-sheets', path: '/admin/google-sheets', label: 'Google Sheets Sync', icon: FileText },
     { id: 'customers', path: '/admin/customers', label: 'Customer Management', icon: Users },
     { id: 'dealers', path: '/admin/dealers', label: 'Dealer Management', icon: Building2 },
     { id: 'partners', path: '/admin/partners', label: 'Partner Management', icon: Handshake },
@@ -674,6 +732,7 @@ export const AdminDashboardPage: React.FC = () => {
                                 stockCount: v.stockCount,
                                 description: p.description,
                                 badge: p.badge || '',
+                                imageUrl: p.images?.[0]?.imageUrl || '',
                                 isPublished: p.isPublished,
                                 featured: p.featured || false
                               });
@@ -857,6 +916,457 @@ export const AdminDashboardPage: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* SUBSCRIPTIONS MANAGEMENT (/admin/subscriptions) */}
+            {activeSection === 'subscriptions' && (
+              <div className="space-y-5">
+                {/* Header & KPI Summary */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-serif text-xl sm:text-2xl text-white font-bold flex items-center gap-2">
+                      <RefreshCw className="w-5 h-5 text-[#C2A36C]" />
+                      <span>Subscriptions Control / दैनिक दूध सब्सक्रिप्शन</span>
+                    </h2>
+                    <p className="text-xs text-[#F3EDE1]/70 mt-0.5">
+                      Full control for Admin & Operations Manager: daily deliveries, pause/resume, edits & instant Google Sheets sync.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSyncingSheets}
+                      onClick={async () => {
+                        setIsSyncingSheets(true);
+                        setSheetSyncResult(null);
+                        const res = await syncSubscriptionsToGoogleSheets(webhookInput);
+                        setIsSyncingSheets(false);
+                        setSheetSyncResult(res.message);
+                        setTimeout(() => setSheetSyncResult(null), 5000);
+                      }}
+                      className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingSheets ? 'Syncing...' : 'Sync to Google Sheets'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => exportSubscriptionsToCSV()}
+                      className="px-3.5 py-2 bg-[#1F2F26] hover:bg-[#3A5243] border border-[#3A5243] text-[#FAF6EE] rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#C2A36C]" />
+                      <span>Export CSV</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAddSubOpen(true)}
+                      className="px-3.5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] rounded-xl text-xs font-bold flex items-center gap-1 shadow-md cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ New Subscription</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Feedback Notification */}
+                {sheetSyncResult && (
+                  <div className="p-3 bg-emerald-950/80 border border-emerald-500 rounded-xl text-xs text-emerald-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{sheetSyncResult}</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setSheetSyncResult(null)}
+                      className="text-emerald-400 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Subscription Stat Pills */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 bg-[#1F2F26] rounded-xl border border-[#3A5243]">
+                    <span className="text-[10px] text-[#F3EDE1]/60 block uppercase font-mono">Total Patrons</span>
+                    <strong className="text-xl font-bold text-white font-mono mt-0.5 block">{subscriptions.length}</strong>
+                    <span className="text-[10px] text-emerald-400 font-medium">All Seoni zones</span>
+                  </div>
+                  <div className="p-3 bg-[#1F2F26] rounded-xl border border-[#3A5243]">
+                    <span className="text-[10px] text-[#F3EDE1]/60 block uppercase font-mono">Active Bottles / Day</span>
+                    <strong className="text-xl font-bold text-[#C2A36C] font-mono mt-0.5 block">
+                      {subscriptions.filter(s => s.status === 'active').reduce((acc, s) => acc + s.quantity, 0)} Litres
+                    </strong>
+                    <span className="text-[10px] text-[#F3EDE1]/60 font-medium">Sterile glass bottles</span>
+                  </div>
+                  <div className="p-3 bg-[#1F2F26] rounded-xl border border-[#3A5243]">
+                    <span className="text-[10px] text-[#F3EDE1]/60 block uppercase font-mono">Active Subscriptions</span>
+                    <strong className="text-xl font-bold text-emerald-400 font-mono mt-0.5 block">
+                      {subscriptions.filter(s => s.status === 'active').length}
+                    </strong>
+                    <span className="text-[10px] text-[#F3EDE1]/60">Morning & Evening drop</span>
+                  </div>
+                  <div className="p-3 bg-[#1F2F26] rounded-xl border border-[#3A5243]">
+                    <span className="text-[10px] text-[#F3EDE1]/60 block uppercase font-mono">Google Sheet Sync</span>
+                    <strong className="text-xs font-bold text-white font-mono mt-1.5 block truncate">
+                      {siteSettings.lastGoogleSheetSync || 'Real-time Webhook'}
+                    </strong>
+                    <span className="text-[10px] text-emerald-400">Live automatic backup</span>
+                  </div>
+                </div>
+
+                {/* Filters & Search */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#1F2F26] p-3 rounded-2xl border border-[#3A5243]">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Search patron by name, phone, email, or colony..."
+                      value={subSearchQuery}
+                      onChange={(e) => setSubSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 bg-[#17241C] border border-[#3A5243] rounded-xl text-white text-xs outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                    {(['all', 'active', 'paused', 'cancelled'] as const).map((st) => (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setSubFilterStatus(st)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all cursor-pointer ${
+                          subFilterStatus === st
+                            ? 'bg-[#C2A36C] text-[#263D30] font-bold shadow-xs'
+                            : 'bg-[#17241C] text-[#F3EDE1]/70 hover:text-white'
+                        }`}
+                      >
+                        {st}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Subscriptions List */}
+                <div className="space-y-3">
+                  {subscriptions
+                    .filter(s => {
+                      if (subFilterStatus !== 'all' && s.status !== subFilterStatus) return false;
+                      if (!subSearchQuery.trim()) return true;
+                      const q = subSearchQuery.toLowerCase();
+                      const name = (s.customerName || '').toLowerCase();
+                      const phone = (s.customerPhone || '').toLowerCase();
+                      const email = (s.customerEmail || '').toLowerCase();
+                      const address = (s.deliveryAddress || '').toLowerCase();
+                      const prod = (s.productName || '').toLowerCase();
+                      return (
+                        name.includes(q) ||
+                        phone.includes(q) ||
+                        email.includes(q) ||
+                        address.includes(q) ||
+                        prod.includes(q)
+                      );
+                    })
+                    .map((sub) => (
+                      <div
+                        key={sub.id}
+                        className="p-4 bg-[#1F2F26] rounded-2xl border border-[#3A5243] flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs hover:border-[#C2A36C]/40 transition-colors"
+                      >
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <strong className="text-sm font-bold text-white">{sub.customerName || 'Valued Patron'}</strong>
+                            <span className="font-mono text-[11px] text-[#C2A36C] bg-[#C2A36C]/10 border border-[#C2A36C]/30 px-2 py-0.5 rounded-md">
+                              {sub.customerPhone || '+91 7067672604'}
+                            </span>
+                            {sub.customerEmail && (
+                              <span className="text-[10px] text-[#F3EDE1]/60">
+                                {sub.customerEmail}
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                sub.status === 'active'
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-600'
+                                  : sub.status === 'paused'
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-600'
+                                  : 'bg-rose-950 text-rose-300 border border-rose-800'
+                              }`}
+                            >
+                              {sub.status}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[#F3EDE1]/85">
+                            <span className="font-semibold text-white">
+                              📦 {sub.quantity}x {sub.productName} ({sub.variant})
+                            </span>
+                            <span className="text-[#C2A36C]">
+                              🕒 {sub.frequency} · {sub.deliverySlot || '5:00 AM - 10:00 AM'}
+                            </span>
+                            <span className="text-[#F3EDE1]/60">
+                              Starts: {sub.startDate}
+                            </span>
+                          </div>
+
+                          <p className="text-[11px] text-[#F3EDE1]/70 truncate max-w-xl">
+                            📍 {sub.deliveryAddress || 'Doorstep delivery, Seoni, MP'}
+                          </p>
+
+                          {sub.notes && (
+                            <p className="text-[10px] text-[#C2A36C]/90 italic">
+                              Drop Notes: {sub.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Admin Action Buttons */}
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {/* 1-Tap Pause / Resume */}
+                          <button
+                            type="button"
+                            onClick={() => toggleSubscriptionPause(sub.id)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors ${
+                              sub.status === 'active'
+                                ? 'bg-amber-950/70 hover:bg-amber-900 border border-amber-700 text-amber-300'
+                                : 'bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-600 text-emerald-300'
+                            }`}
+                          >
+                            <span>{sub.status === 'active' ? 'Pause' : 'Resume'}</span>
+                          </button>
+
+                          {/* Edit Subscription */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSub(sub);
+                              setEditSubForm({
+                                customerName: sub.customerName || '',
+                                customerPhone: sub.customerPhone || '',
+                                customerEmail: sub.customerEmail || '',
+                                productName: sub.productName,
+                                variant: sub.variant,
+                                quantity: sub.quantity,
+                                frequency: (sub.frequency as any) || 'daily',
+                                deliverySlot: sub.deliverySlot || '5:00 AM - 10:00 AM',
+                                deliveryAddress: sub.deliveryAddress || '',
+                                notes: sub.notes || '',
+                                status: sub.status
+                              });
+                            }}
+                            className="px-3 py-1.5 bg-[#263D30] hover:bg-[#3A5243] text-white border border-[#3A5243] rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-[#C2A36C]" />
+                            <span>Edit</span>
+                          </button>
+
+                          {/* Direct WhatsApp link */}
+                          <a
+                            href={`https://wa.me/${(sub.customerPhone || '917067672604').replace(/[^0-9]/g, '')}?text=Namaste%20${encodeURIComponent(sub.customerName || 'Valued Patron')}%2C%20regarding%20your%20DUGDHSAR%20daily%20A2%20milk%20subscription%20(${encodeURIComponent(sub.variant)}%20x%20${sub.quantity})%3A`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2.5 py-1.5 bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 text-emerald-300 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                            title="Direct WhatsApp"
+                          >
+                            <span>WhatsApp</span>
+                          </a>
+
+                          {/* Delete Subscription */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Delete subscription for ${sub.customerName}?`)) {
+                                deleteSubscription(sub.id);
+                              }
+                            }}
+                            className="p-1.5 bg-rose-950/40 hover:bg-rose-950 border border-rose-800 text-rose-300 rounded-lg text-xs cursor-pointer"
+                            title="Delete Subscription"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                  {subscriptions.length === 0 && (
+                    <div className="p-8 text-center bg-[#1F2F26] rounded-2xl border border-[#3A5243] text-[#F3EDE1]/60">
+                      No customer subscriptions yet. Click "+ New Subscription" above to create one.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* GOOGLE SHEETS DATA SYNC MODULE (/admin/google-sheets) */}
+            {activeSection === 'google-sheets' && (
+              <div className="space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-serif text-xl sm:text-2xl text-white font-bold flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-emerald-400" />
+                      <span>Google Sheets Data Sync / गूगल डेटा शीट सिंक</span>
+                    </h2>
+                    <p className="text-xs text-[#F3EDE1]/70 mt-0.5">
+                      Automatically synchronizes all user morning bottle subscriptions and orders to your external Google Spreadsheet.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSyncingSheets}
+                      onClick={async () => {
+                        setIsSyncingSheets(true);
+                        setSheetSyncResult(null);
+                        const res = await syncSubscriptionsToGoogleSheets(webhookInput);
+                        setIsSyncingSheets(false);
+                        setSheetSyncResult(res.message);
+                      }}
+                      className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncingSheets ? 'animate-spin' : ''}`} />
+                      <span>{isSyncingSheets ? 'Synchronizing...' : 'Sync All Records Now'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => exportSubscriptionsToCSV()}
+                      className="px-3.5 py-2 bg-[#1F2F26] hover:bg-[#3A5243] border border-[#3A5243] text-white rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#C2A36C]" />
+                      <span>Download Sheet CSV</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status Notice */}
+                {sheetSyncResult && (
+                  <div className="p-3 bg-emerald-950 border border-emerald-500 rounded-xl text-xs text-emerald-200 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>{sheetSyncResult}</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setSheetSyncResult(null)}
+                      className="text-emerald-400 hover:text-white"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
+                {/* Configuration Card */}
+                <div className="bg-[#1F2F26] p-5 rounded-2xl border border-[#3A5243] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-sm font-bold text-white flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-[#C2A36C]" />
+                      <span>Google Apps Script / Webhook Endpoint Configuration</span>
+                    </h3>
+                    <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded-full">
+                      Auto-Sync Active on Every New Subscription
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1.5">
+                      Google Sheets Webhook URL (Google Apps Script Web App Endpoint)
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="url"
+                        value={webhookInput}
+                        onChange={(e) => setWebhookInput(e.target.value)}
+                        placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                        className="flex-1 px-3 py-2 bg-[#17241C] border border-[#3A5243] rounded-xl text-white text-xs outline-none focus:border-[#C2A36C] font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateSiteSettings({ googleSheetsWebhookUrl: webhookInput });
+                          setSheetSyncResult('Google Sheets Webhook URL saved successfully.');
+                          setTimeout(() => setSheetSyncResult(null), 4000);
+                        }}
+                        className="px-4 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold text-xs rounded-xl shadow-md cursor-pointer shrink-0"
+                      >
+                        Save Webhook
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-[#F3EDE1]/60 mt-1.5 leading-relaxed">
+                      Whenever a customer subscribes from the website or calendar, the complete customer details (Name, Phone, Email, Address, Milk Type, Bottle Qty, Delivery Slot) are immediately sent to this sheet.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#3A5243]/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-[#F3EDE1]/70">
+                      Last Synchronized: <strong className="text-white">{siteSettings.lastGoogleSheetSync || 'Just now'}</strong>
+                    </span>
+                    <span className="text-emerald-400 font-medium">
+                      ✓ Data format: 14 Columns compliant with Google Sheets & Microsoft Excel
+                    </span>
+                  </div>
+                </div>
+
+                {/* Google Sheet Live Tabular Preview */}
+                <div className="bg-[#1F2F26] rounded-2xl border border-[#3A5243] overflow-hidden">
+                  <div className="p-4 bg-[#17241C] border-b border-[#3A5243] flex items-center justify-between">
+                    <div>
+                      <h4 className="font-serif text-sm font-bold text-white flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Live Google Sheet Data Preview ({subscriptions.length} Subscriptions)</span>
+                      </h4>
+                      <p className="text-[10px] text-[#F3EDE1]/60">Real-time mirror of spreadsheet columns & rows</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => exportSubscriptionsToCSV()}
+                      className="px-2.5 py-1 bg-[#263D30] hover:bg-[#3A5243] text-white border border-[#3A5243] rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                      Export CSV
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px] text-[#F3EDE1]">
+                      <thead className="bg-[#0F1813] text-[#C2A36C] font-mono uppercase text-[10px] tracking-wider border-b border-[#3A5243]">
+                        <tr>
+                          <th className="py-2.5 px-3">Sub ID</th>
+                          <th className="py-2.5 px-3">Patron Name</th>
+                          <th className="py-2.5 px-3">Mobile</th>
+                          <th className="py-2.5 px-3">Email</th>
+                          <th className="py-2.5 px-3">Product</th>
+                          <th className="py-2.5 px-3">Qty</th>
+                          <th className="py-2.5 px-3">Slot</th>
+                          <th className="py-2.5 px-3">Delivery Address</th>
+                          <th className="py-2.5 px-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#3A5243]/60 font-mono">
+                        {subscriptions.map((s) => (
+                          <tr key={s.id} className="hover:bg-[#263D30]/40 transition-colors">
+                            <td className="py-2.5 px-3 text-[#C2A36C] font-bold">{s.id}</td>
+                            <td className="py-2.5 px-3 text-white font-sans font-semibold">{s.customerName}</td>
+                            <td className="py-2.5 px-3">{s.customerPhone}</td>
+                            <td className="py-2.5 px-3 text-gray-400">{s.customerEmail || '—'}</td>
+                            <td className="py-2.5 px-3 font-sans truncate max-w-[140px]">{s.productName}</td>
+                            <td className="py-2.5 px-3 text-emerald-400 font-bold">{s.quantity}L</td>
+                            <td className="py-2.5 px-3 truncate max-w-[110px]">{s.deliverySlot}</td>
+                            <td className="py-2.5 px-3 font-sans truncate max-w-[160px] text-gray-300">{s.deliveryAddress}</td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                s.status === 'active' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700' : 'bg-amber-950 text-amber-300 border border-amber-700'
+                              }`}>
+                                {s.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
@@ -1719,6 +2229,13 @@ export const AdminDashboardPage: React.FC = () => {
                     pricePaise: Math.round(Number(newProductForm.priceRupees) * 100),
                     description: newProductForm.description,
                     badge: newProductForm.badge,
+                    images: newProductForm.imageUrl ? [{
+                      id: `img-${Date.now()}`,
+                      productId: '',
+                      imageUrl: newProductForm.imageUrl,
+                      altText: newProductForm.name,
+                      sortOrder: 1
+                    }] : undefined,
                     variants: [{
                       id: `var-${Date.now()}`,
                       productId: '',
@@ -1739,7 +2256,8 @@ export const AdminDashboardPage: React.FC = () => {
                     priceRupees: 170,
                     stockCount: 50,
                     description: 'Pure certified A2 Gir cow dairy delivered fresh under cold-chain standards in Seoni.',
-                    badge: 'Fresh Dawn Milking'
+                    badge: 'Fresh Dawn Milking',
+                    imageUrl: '/assets/aistudio/image_fe6cbcdf.png'
                   });
                 }}
                 className="space-y-3.5 text-xs"
@@ -1754,6 +2272,66 @@ export const AdminDashboardPage: React.FC = () => {
                     onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
                     className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
                   />
+                </div>
+
+                {/* Photo Upload & Select */}
+                <div className="bg-[#1A2820] p-3 rounded-2xl border border-[#3A5243] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-semibold text-[#C2A36C]">Product Photo / Image URL</label>
+                    {newProductForm.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setNewProductForm({ ...newProductForm, imageUrl: '' })}
+                        className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
+                      >
+                        Remove Photo
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {newProductForm.imageUrl ? (
+                      <div className="w-14 h-14 rounded-xl border border-[#C2A36C]/60 overflow-hidden bg-black shrink-0 relative">
+                        <img 
+                          src={newProductForm.imageUrl} 
+                          alt="Product preview" 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl border border-dashed border-[#3A5243] flex items-center justify-center text-[10px] text-gray-400 shrink-0">
+                        No Image
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      placeholder="Enter image URL or select from presets below"
+                      value={newProductForm.imageUrl}
+                      onChange={(e) => setNewProductForm({ ...newProductForm, imageUrl: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white text-xs outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  {/* Preset Photo Chips */}
+                  <div>
+                    <span className="text-[10px] text-[#F3EDE1]/60 block mb-1">Quick Vedic Image Presets:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DAIRY_IMAGE_PRESETS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setNewProductForm({ ...newProductForm, imageUrl: preset.url })}
+                          className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                            newProductForm.imageUrl === preset.url
+                              ? 'bg-[#C2A36C] text-[#263D30] font-bold border-[#C2A36C]'
+                              : 'bg-[#1F2F26] text-[#F3EDE1]/80 border-[#3A5243] hover:border-[#C2A36C]'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1853,7 +2431,7 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* MODAL 2: EDIT PRODUCT MODAL */}
+        {/* MODAL 2: EDIT PRODUCT MODAL (WITH FULL PHOTO MANAGEMENT) */}
         {editingProduct && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
             <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1863,7 +2441,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <Edit className="w-5 h-5 text-[#C2A36C]" />
                     <span>Edit Provision: {editingProduct.name}</span>
                   </h3>
-                  <p className="text-[11px] text-[#F3EDE1]/70">Modify product details, selling price, or inventory count</p>
+                  <p className="text-[11px] text-[#F3EDE1]/70">Modify product details, photo, selling price, or inventory count</p>
                 </div>
                 <button
                   type="button"
@@ -1889,6 +2467,14 @@ export const AdminDashboardPage: React.FC = () => {
                     return v;
                   });
 
+                  const updatedImages = editProductForm.imageUrl ? [{
+                    id: editingProduct.images?.[0]?.id || `img-${Date.now()}`,
+                    productId: editingProduct.id,
+                    imageUrl: editProductForm.imageUrl,
+                    altText: editProductForm.name,
+                    sortOrder: 1
+                  }] : [];
+
                   updateProduct(editingProduct.id, {
                     name: editProductForm.name,
                     categorySlug: editProductForm.categorySlug,
@@ -1896,7 +2482,8 @@ export const AdminDashboardPage: React.FC = () => {
                     badge: editProductForm.badge,
                     isPublished: editProductForm.isPublished,
                     featured: editProductForm.featured,
-                    variants: updatedVariants
+                    variants: updatedVariants,
+                    images: updatedImages
                   });
 
                   setEditingProduct(null);
@@ -1912,6 +2499,68 @@ export const AdminDashboardPage: React.FC = () => {
                     onChange={(e) => setEditProductForm({ ...editProductForm, name: e.target.value })}
                     className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
                   />
+                </div>
+
+                {/* Photo Management for Admin & Manager */}
+                <div className="bg-[#1A2820] p-3 rounded-2xl border border-[#3A5243] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-semibold text-[#C2A36C]">
+                      Product Photo (Edit, Replace or Delete)
+                    </label>
+                    {editProductForm.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setEditProductForm({ ...editProductForm, imageUrl: '' })}
+                        className="text-[10px] text-rose-400 hover:text-rose-300 font-semibold cursor-pointer"
+                      >
+                        Delete Photo
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {editProductForm.imageUrl ? (
+                      <div className="w-14 h-14 rounded-xl border border-[#C2A36C]/60 overflow-hidden bg-black shrink-0 relative">
+                        <img 
+                          src={editProductForm.imageUrl} 
+                          alt="Product preview" 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl border border-dashed border-[#3A5243] flex items-center justify-center text-[10px] text-gray-400 shrink-0">
+                        No Image
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      placeholder="Paste image URL (https://... or /assets/...)"
+                      value={editProductForm.imageUrl}
+                      onChange={(e) => setEditProductForm({ ...editProductForm, imageUrl: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white text-xs outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  {/* Preset Photo Chips */}
+                  <div>
+                    <span className="text-[10px] text-[#F3EDE1]/60 block mb-1">Select from Vedic Dairy Presets:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DAIRY_IMAGE_PRESETS.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditProductForm({ ...editProductForm, imageUrl: preset.url })}
+                          className={`text-[10px] px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                            editProductForm.imageUrl === preset.url
+                              ? 'bg-[#C2A36C] text-[#263D30] font-bold border-[#C2A36C]'
+                              : 'bg-[#1F2F26] text-[#F3EDE1]/80 border-[#3A5243] hover:border-[#C2A36C]'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1989,6 +2638,26 @@ export const AdminDashboardPage: React.FC = () => {
                     />
                     <span className="text-[11px] font-semibold">Featured on Homepage</span>
                   </label>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Badge / Tagline</label>
+                  <input
+                    type="text"
+                    value={editProductForm.badge}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, badge: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Description</label>
+                  <textarea
+                    rows={2}
+                    value={editProductForm.description}
+                    onChange={(e) => setEditProductForm({ ...editProductForm, description: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#3A5243]">
@@ -2250,6 +2919,382 @@ export const AdminDashboardPage: React.FC = () => {
                     className="px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
                   >
                     Add Delivery Zone
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: EDIT SUBSCRIPTION MODAL (ADMIN & MANAGER) */}
+        {editingSub && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-[#3A5243]">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#FAF6EE] flex items-center gap-2">
+                    <RefreshCw className="w-5 h-5 text-[#C2A36C]" />
+                    <span>Edit Subscription #{editingSub.id}</span>
+                  </h3>
+                  <p className="text-[11px] text-[#F3EDE1]/70">Admin & Manager Control: Update patron bottles, schedule, or route address</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingSub(null)}
+                  className="p-1 text-[#F3EDE1]/60 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  updateSubscription(editingSub.id, {
+                    customerName: editSubForm.customerName,
+                    customerPhone: editSubForm.customerPhone,
+                    customerEmail: editSubForm.customerEmail,
+                    productName: editSubForm.productName,
+                    variant: editSubForm.variant,
+                    quantity: Number(editSubForm.quantity),
+                    frequency: editSubForm.frequency,
+                    deliverySlot: editSubForm.deliverySlot,
+                    deliveryAddress: editSubForm.deliveryAddress,
+                    notes: editSubForm.notes,
+                    status: editSubForm.status as 'active' | 'paused' | 'cancelled'
+                  });
+                  setEditingSub(null);
+                }}
+                className="space-y-3.5 text-xs"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Patron Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editSubForm.customerName}
+                      onChange={(e) => setEditSubForm({ ...editSubForm, customerName: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Mobile / WhatsApp *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editSubForm.customerPhone}
+                      onChange={(e) => setEditSubForm({ ...editSubForm, customerPhone: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Customer Email</label>
+                  <input
+                    type="email"
+                    value={editSubForm.customerEmail}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, customerEmail: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Dairy Product *</label>
+                    <select
+                      value={editSubForm.productName}
+                      onChange={(e) => setEditSubForm({ ...editSubForm, productName: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    >
+                      <option value="DUGDHSAR Fresh A2 Desi Cow Whole Milk">Fresh A2 Whole Milk</option>
+                      <option value="DUGDHSAR Fresh A2 Light Skimmed Milk">Fresh A2 Light Milk</option>
+                      <option value="DUGDHSAR Vedic Traditional Bilona Cow Ghee">Vedic Bilona Ghee</option>
+                      <option value="DUGDHSAR Fresh A2 Malai Cottage Cheese (Paneer)">Fresh Malai Paneer</option>
+                      <option value="DUGDHSAR Clay-Pot Natural Vedic Dahi (Curd)">Clay-Pot Vedic Dahi</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Daily Bottle Quantity *</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={20}
+                      value={editSubForm.quantity}
+                      onChange={(e) => setEditSubForm({ ...editSubForm, quantity: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Schedule Frequency</label>
+                    <select
+                      value={editSubForm.frequency}
+                      onChange={(e) => setEditSubForm({ ...editSubForm, frequency: e.target.value as any })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    >
+                      <option value="daily">Daily Morning Drop</option>
+                      <option value="alternate">Alternate Days</option>
+                      <option value="weekdays">Weekdays (Mon – Fri)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Delivery Slot</label>
+                    <select
+                      value={editSubForm.deliverySlot}
+                      onChange={(e) => setEditSubForm({ ...editSubForm, deliverySlot: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    >
+                      <option value="5:00 AM - 10:00 AM">Morning Dawn (5:00 AM – 10:00 AM)</option>
+                      <option value="6:00 PM - 10:00 PM">Evening Drop (6:00 PM – 10:00 PM)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Subscription Status *</label>
+                  <select
+                    value={editSubForm.status}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, status: e.target.value as any })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  >
+                    <option value="active">Active (Deliver Daily)</option>
+                    <option value="paused">Paused (Temporarily On Hold)</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Complete Doorstep Address in Seoni *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={editSubForm.deliveryAddress}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, deliveryAddress: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Drop Notes / Delivery Remarks</label>
+                  <input
+                    type="text"
+                    value={editSubForm.notes}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, notes: e.target.value })}
+                    placeholder="e.g. Leave in insulated door bag / ring bell"
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#3A5243]">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSub(null)}
+                    className="px-4 py-2 bg-[#1F2F26] hover:bg-[#3A5243] text-[#F3EDE1]/75 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Save Subscription & Sync
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD MANUAL SUBSCRIPTION (ADMIN & MANAGER) */}
+        {isAddSubOpen && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[#263D30] border-2 border-[#C2A36C]/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 text-white shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-[#3A5243]">
+                <div>
+                  <h3 className="font-serif text-lg font-bold text-[#FAF6EE] flex items-center gap-2">
+                    <Plus className="w-5 h-5 text-[#C2A36C]" />
+                    <span>Create Manual Subscription</span>
+                  </h3>
+                  <p className="text-[11px] text-[#F3EDE1]/70">Add a patron directly to cold-chain delivery routes & sync to Google Sheets</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddSubOpen(false)}
+                  className="p-1 text-[#F3EDE1]/60 hover:text-white cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  addSubscription({
+                    customerName: newSubAdminForm.customerName,
+                    customerPhone: newSubAdminForm.customerPhone,
+                    customerEmail: newSubAdminForm.customerEmail,
+                    productName: newSubAdminForm.productName,
+                    variant: newSubAdminForm.variant,
+                    quantity: Number(newSubAdminForm.quantity),
+                    frequency: newSubAdminForm.frequency,
+                    deliverySlot: newSubAdminForm.deliverySlot,
+                    deliveryAddress: newSubAdminForm.deliveryAddress,
+                    notes: newSubAdminForm.notes,
+                    startDate: new Date().toISOString().split('T')[0],
+                    status: 'active',
+                    nextDelivery: `Tomorrow, ${newSubAdminForm.deliverySlot}`
+                  });
+                  setIsAddSubOpen(false);
+                  setNewSubAdminForm({
+                    customerName: '',
+                    customerPhone: '',
+                    customerEmail: '',
+                    productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+                    variant: '1 Litre Glass Bottle',
+                    quantity: 1,
+                    frequency: 'daily',
+                    deliverySlot: '5:00 AM - 10:00 AM',
+                    deliveryAddress: 'Sufi Nagar, Barghat Road, Seoni, MP 480661',
+                    notes: 'Morning dawn drop in sterilized glass bottle'
+                  });
+                }}
+                className="space-y-3.5 text-xs"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Patron Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Ramesh Chandra Verma"
+                      value={newSubAdminForm.customerName}
+                      onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, customerName: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Mobile / WhatsApp *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="+91 98765 43210"
+                      value={newSubAdminForm.customerPhone}
+                      onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, customerPhone: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Customer Email (Optional)</label>
+                  <input
+                    type="email"
+                    placeholder="patron@gmail.com"
+                    value={newSubAdminForm.customerEmail}
+                    onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, customerEmail: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Dairy Product *</label>
+                    <select
+                      value={newSubAdminForm.productName}
+                      onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, productName: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    >
+                      <option value="DUGDHSAR Fresh A2 Desi Cow Whole Milk">Fresh A2 Whole Milk</option>
+                      <option value="DUGDHSAR Fresh A2 Light Skimmed Milk">Fresh A2 Light Milk</option>
+                      <option value="DUGDHSAR Vedic Traditional Bilona Cow Ghee">Vedic Bilona Ghee</option>
+                      <option value="DUGDHSAR Fresh A2 Malai Cottage Cheese (Paneer)">Fresh Malai Paneer</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Daily Bottle Quantity *</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={20}
+                      value={newSubAdminForm.quantity}
+                      onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, quantity: Number(e.target.value) })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white font-mono outline-none focus:border-[#C2A36C]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Schedule Frequency</label>
+                    <select
+                      value={newSubAdminForm.frequency}
+                      onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, frequency: e.target.value as any })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    >
+                      <option value="daily">Daily Morning Drop</option>
+                      <option value="alternate">Alternate Days</option>
+                      <option value="weekdays">Weekdays (Mon – Fri)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Delivery Slot</label>
+                    <select
+                      value={newSubAdminForm.deliverySlot}
+                      onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, deliverySlot: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                    >
+                      <option value="5:00 AM - 10:00 AM">Morning Dawn (5:00 AM – 10:00 AM)</option>
+                      <option value="6:00 PM - 10:00 PM">Evening Drop (6:00 PM – 10:00 PM)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Doorstep Address in Seoni *</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={newSubAdminForm.deliveryAddress}
+                    onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, deliveryAddress: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Drop Notes</label>
+                  <input
+                    type="text"
+                    value={newSubAdminForm.notes}
+                    onChange={(e) => setNewSubAdminForm({ ...newSubAdminForm, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#1F2F26] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#3A5243]">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddSubOpen(false)}
+                    className="px-4 py-2 bg-[#1F2F26] hover:bg-[#3A5243] text-[#F3EDE1]/75 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold rounded-xl shadow-md cursor-pointer"
+                  >
+                    Create & Sync to Sheet
                   </button>
                 </div>
               </form>

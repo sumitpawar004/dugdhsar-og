@@ -12,7 +12,8 @@ export const ProductsSection: React.FC = () => {
     setSelectedCategory,
     searchQuery,
     setSearchQuery,
-    setIsCartOpen
+    setIsCartOpen,
+    openReviewModal
   } = useStore();
 
   const { navigate } = useRouter();
@@ -110,11 +111,26 @@ export const ProductsSection: React.FC = () => {
                   />
                 </div>
 
-                {/* Title & Price */}
+                {/* Title & Price & Reviews */}
                 <div className="my-2 space-y-1">
-                  <div className="text-[10px] uppercase font-bold text-[#A34F37] tracking-wider">
-                    {product.categorySlug}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-[#A34F37] tracking-wider">
+                      {product.categorySlug}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openReviewModal(product);
+                      }}
+                      className="flex items-center gap-1 text-[11px] text-[#263D30] font-semibold hover:text-[#A34F37] transition-colors bg-[#F8F4EC] px-2 py-0.5 rounded-full border border-[#D8C9AD]/60 cursor-pointer"
+                      title="Rate or write a review"
+                    >
+                      <Star className="w-3 h-3 fill-[#C2A36C] text-[#C2A36C]" />
+                      <span>{product.rating.toFixed(1)}</span>
+                      <span className="text-[#302C26]/50">({product.reviewsCount})</span>
+                    </button>
                   </div>
+
                   <h4 className="text-xs sm:text-sm font-serif font-bold text-[#263D30] leading-snug line-clamp-2">
                     {product.name}
                   </h4>
@@ -123,21 +139,33 @@ export const ProductsSection: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Two Action Buttons: "View Details" and "Add" */}
-                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-[#D8C9AD]/40">
+                {/* Action Buttons: "View", "Review" and "Add" */}
+                <div className="grid grid-cols-3 gap-1.5 mt-3 pt-3 border-t border-[#D8C9AD]/40">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/products/${product.slug}`);
                     }}
-                    className="py-1.5 px-2 bg-[#FAF6EE] hover:bg-[#F3EDE1] text-[#263D30] border border-[#D8C9AD] text-[11px] font-semibold rounded-lg transition-all"
+                    className="py-1.5 px-1 bg-[#FAF6EE] hover:bg-[#F3EDE1] text-[#263D30] border border-[#D8C9AD] text-[10px] sm:text-[11px] font-semibold rounded-lg transition-all text-center"
                   >
                     View
                   </button>
 
                   <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openReviewModal(product);
+                    }}
+                    className="py-1.5 px-1 bg-[#FAF6EE] hover:bg-amber-50 text-amber-900 border border-[#D8C9AD] text-[10px] sm:text-[11px] font-semibold rounded-lg transition-all flex items-center justify-center gap-0.5"
+                    title="Write a review for this product"
+                  >
+                    <Star className="w-3 h-3 text-[#C2A36C] fill-[#C2A36C]" />
+                    <span>Review</span>
+                  </button>
+
+                  <button
                     onClick={(e) => handleAddToCart(product, e)}
-                    className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all text-[#FAF6EE] flex items-center justify-center space-x-1 ${
+                    className={`py-1.5 px-1 rounded-lg text-[10px] sm:text-[11px] font-semibold transition-all text-[#FAF6EE] flex items-center justify-center space-x-1 ${
                       isAdded 
                         ? 'bg-emerald-700' 
                         : 'bg-[#263D30] hover:bg-[#1A2B22] shadow-xs active:scale-95'

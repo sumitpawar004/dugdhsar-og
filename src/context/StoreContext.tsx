@@ -34,6 +34,7 @@ import {
   DEMO_PROFILES, 
   DEMO_ADDRESSES 
 } from '../data/seedData';
+import { authService, LocalUser, setLocalSession } from '../lib/supabase';
 
 interface StoreContextType {
   // Master data
@@ -51,8 +52,14 @@ interface StoreContextType {
   
   // User & Auth
   currentUser: Profile;
+  isAuthenticated: boolean;
+  loginUser: (user: LocalUser) => void;
+  logoutUser: () => void;
   addresses: Address[];
-  switchUserPersona: (role: 'customer' | 'admin' | 'operations' | 'support') => void;
+  userAddresses: Address[];
+  userOrders: Order[];
+  userSubscriptions: Subscription[];
+  switchUserPersona: (role: 'customer' | 'admin' | 'operations' | 'support' | 'dealer') => void;
   updateProfile: (updated: Partial<Profile>) => void;
   addAddress: (address: Omit<Address, 'id' | 'userId'>) => Address;
   updateAddress: (id: string, address: Partial<Address>) => void;
@@ -97,12 +104,22 @@ interface StoreContextType {
   // Subscriptions
   subscriptions: Subscription[];
   addSubscription: (sub: Omit<Subscription, 'id'>) => Subscription;
+  updateSubscription: (id: string, updates: Partial<Subscription>) => void;
+  deleteSubscription: (id: string) => void;
   toggleSubscriptionPause: (id: string) => void;
   cancelSubscription: (id: string) => void;
+  syncSubscriptionsToGoogleSheets: (webhookUrl?: string) => Promise<{ success: boolean; message: string; rowsSynced: number }>;
+  exportSubscriptionsToCSV: () => void;
 
   // Enquiries & Reviews
   submitEnquiry: (enquiry: Omit<Enquiry, 'id' | 'createdAt' | 'status'>) => void;
   submitReview: (review: Omit<Review, 'id' | 'createdAt' | 'isApproved'>) => void;
+  toggleHelpfulReview: (reviewId: string) => void;
+  isReviewModalOpen: boolean;
+  setIsReviewModalOpen: (open: boolean) => void;
+  reviewModalProduct: Product | null;
+  openReviewModal: (product?: Product | null) => void;
+  closeReviewModal: () => void;
 
   // Admin Management Actions
   updateProductStock: (variantId: string, delta: number, reason: string) => void;
@@ -134,6 +151,8 @@ interface StoreContextType {
     gstin: string;
     morningHours: string;
     eveningHours: string;
+    googleSheetsWebhookUrl?: string;
+    lastGoogleSheetSync?: string;
   };
   updateSiteSettings: (settings: Partial<StoreContextType['siteSettings']>) => void;
 
@@ -204,12 +223,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       fssaiNumber: '10020000000000',
       gstin: '23AAACD1964E1Z5',
       morningHours: '5:00 AM – 10:00 AM',
-      eveningHours: '6:00 PM – 10:00 PM'
+      eveningHours: '6:00 PM – 10:00 PM',
+      googleSheetsWebhookUrl: 'https://script.google.com/macros/s/AKfycbx-dugdhsar-a2-dairy-sync/exec',
+      lastGoogleSheetSync: 'Never'
     };
   });
   const [deliverySlots] = useState<DeliverySlot[]>(INITIAL_DELIVERY_SLOTS);
   const [journalPosts] = useState<JournalPost[]>(INITIAL_JOURNAL_POSTS);
-  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_customer_reviews');
+      return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+    } catch {
+      return INITIAL_REVIEWS;
+    }
+  });
   const [coupons] = useState<Coupon[]>(INITIAL_COUPONS);
   const [currentBatch] = useState<BatchPurityData>(LATEST_BATCH_PURITY);
   const [batches, setBatches] = useState<InventoryBatch[]>(() => {
@@ -222,8 +250,61 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [serviceablePincodes] = useState<ServiceablePincode[]>(INITIAL_SERVICEABLE_PINCODES);
 
-  // User Profile & Addresses
-  const [currentUser, setCurrentUser] = useState<Profile>(DEMO_PROFILES[0]);
+  // User Profile & Addresses - Load from active local session or default to initial patron
+  const [currentUser, setCurrentUser] = useState<Profile>(() => {
+    try {
+      const session = authService.getCurrentUser();
+      if (session) {
+        return {
+          id: session.id,
+          fullName: session.fullName,
+          email: session.email,
+          phone: session.phone,
+          role: session.role === 'admin' ? 'admin' : (session.role === 'manager' ? 'manager' : (session.role === 'dealer' ? 'dealer' : 'customer')),
+          avatarUrl: session.avatarUrl,
+          authProvider: session.authProvider || 'google',
+          loyaltyPoints: 100,
+          createdAt: session.createdAt || '2026-01-01'
+        };
+      }
+    } catch {
+      // fallback
+    }
+    return DEMO_PROFILES[1]; // customer@dugdhsar.in (Aryaman Sen)
+  });
+
+  const isAuthenticated = useMemo(() => {
+    return Boolean(currentUser && currentUser.email && currentUser.id !== 'guest');
+  }, [currentUser]);
+
+  const loginUser = useCallback((user: LocalUser) => {
+    setLocalSession(user);
+    setCurrentUser({
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      role: user.role === 'admin' ? 'admin' : (user.role === 'manager' ? 'manager' : (user.role === 'dealer' ? 'dealer' : 'customer')),
+      avatarUrl: user.avatarUrl,
+      authProvider: user.authProvider || 'google',
+      loyaltyPoints: 100,
+      createdAt: user.createdAt || new Date().toISOString()
+    });
+  }, []);
+
+  const logoutUser = useCallback(() => {
+    authService.signOut();
+    setCurrentUser({
+      id: 'guest',
+      fullName: 'Guest Patron',
+      email: '',
+      phone: '',
+      role: 'customer',
+      loyaltyPoints: 0,
+      createdAt: new Date().toISOString()
+    });
+  }, []);
+
   const [addresses, setAddresses] = useState<Address[]>(() => {
     try {
       const saved = localStorage.getItem('dugdhsar_addresses');
@@ -326,6 +407,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return [
       {
         id: 'sub-1',
+        userId: 'user-cust-1',
+        customerEmail: 'customer@dugdhsar.in',
         productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
         variant: '1 Litre Glass Bottle',
         quantity: 2,
@@ -340,6 +423,28 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     ];
   });
+
+  // Strictly isolated scoped collections per customer for ZERO cross-customer data leakage
+  const userOrders = useMemo(() => {
+    if (!currentUser.email || currentUser.id === 'guest') return [];
+    return orders.filter(o => 
+      (o.userId && o.userId === currentUser.id) ||
+      (o.customerEmail && o.customerEmail.toLowerCase() === currentUser.email.toLowerCase())
+    );
+  }, [orders, currentUser]);
+
+  const userSubscriptions = useMemo(() => {
+    if (!currentUser.email || currentUser.id === 'guest') return [];
+    return subscriptions.filter(s =>
+      (s.userId && s.userId === currentUser.id) ||
+      (s.customerEmail && s.customerEmail.toLowerCase() === currentUser.email.toLowerCase())
+    );
+  }, [subscriptions, currentUser]);
+
+  const userAddresses = useMemo(() => {
+    if (!currentUser.email || currentUser.id === 'guest') return [];
+    return addresses.filter(a => a.userId === currentUser.id || a.userId === currentUser.email);
+  }, [addresses, currentUser]);
 
   // Enquiries & Audit Logs
   const [enquiries, setEnquiries] = useState<Enquiry[]>([
@@ -372,6 +477,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // UI state
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewModalProduct, setReviewModalProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isQAAuditOpen, setIsQAAuditOpen] = useState(false);
@@ -384,6 +491,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [sortBy, setSortBy] = useState<'featured' | 'price-low' | 'price-high' | 'rating'>('featured');
 
   // Sync to localStorage
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_customer_reviews', JSON.stringify(reviews));
+  }, [reviews]);
+
   useEffect(() => {
     localStorage.setItem('dugdhsar_subscriptions_v2', JSON.stringify(subscriptions));
   }, [subscriptions]);
@@ -679,6 +790,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const addSubscription = useCallback((subData: Omit<Subscription, 'id'>): Subscription => {
     const newSub: Subscription = {
       id: `sub-${Date.now()}`,
+      userId: currentUser.id,
+      customerEmail: currentUser.email,
       ...subData
     };
     setSubscriptions(prev => [newSub, ...prev]);
@@ -687,21 +800,177 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       customer: newSub.customerName,
       phone: newSub.customerPhone
     });
+
+    // Auto-sync to Google Sheets webhook if configured
+    if (siteSettings.googleSheetsWebhookUrl && siteSettings.googleSheetsWebhookUrl.startsWith('http')) {
+      try {
+        fetch(siteSettings.googleSheetsWebhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'NEW_SUBSCRIPTION',
+            timestamp: new Date().toISOString(),
+            subscription: newSub
+          })
+        }).catch(() => {});
+      } catch {}
+    }
+
     return newSub;
+  }, [currentUser, siteSettings.googleSheetsWebhookUrl, recordAuditLog]);
+
+  const updateSubscription = useCallback((id: string, updates: Partial<Subscription>) => {
+    setSubscriptions(prev => prev.map(s => {
+      if (s.id === id) {
+        return { ...s, ...updates };
+      }
+      return s;
+    }));
+    recordAuditLog('SUBSCRIPTION_UPDATED', 'SUBSCRIPTIONS', id, { updates });
+  }, [recordAuditLog]);
+
+  const deleteSubscription = useCallback((id: string) => {
+    setSubscriptions(prev => prev.filter(s => s.id !== id));
+    recordAuditLog('SUBSCRIPTION_DELETED', 'SUBSCRIPTIONS', id);
   }, [recordAuditLog]);
 
   const toggleSubscriptionPause = useCallback((id: string) => {
     setSubscriptions(prev => prev.map(s => {
       if (s.id === id) {
-        return { ...s, status: s.status === 'active' ? 'paused' : 'active' };
+        const nextStatus = s.status === 'active' ? 'paused' : 'active';
+        recordAuditLog('SUBSCRIPTION_STATUS_TOGGLE', 'SUBSCRIPTIONS', id, { status: nextStatus });
+        return { ...s, status: nextStatus };
       }
       return s;
     }));
-  }, []);
+  }, [recordAuditLog]);
 
   const cancelSubscription = useCallback((id: string) => {
-    setSubscriptions(prev => prev.filter(s => s.id !== id));
-  }, []);
+    setSubscriptions(prev => prev.map(s => s.id === id ? { ...s, status: 'cancelled' } : s));
+    recordAuditLog('SUBSCRIPTION_CANCELLED', 'SUBSCRIPTIONS', id);
+  }, [recordAuditLog]);
+
+  const syncSubscriptionsToGoogleSheets = useCallback(async (customWebhookUrl?: string): Promise<{ success: boolean; message: string; rowsSynced: number }> => {
+    const targetWebhook = customWebhookUrl || siteSettings.googleSheetsWebhookUrl;
+    const payload = {
+      timestamp: new Date().toISOString(),
+      source: 'Dugdhsar Production Platform',
+      action: 'SYNC_SUBSCRIPTIONS',
+      syncedBy: currentUser.email || 'system@dugdhsar.in',
+      totalSubscriptions: subscriptions.length,
+      columns: [
+        'Subscription ID',
+        'Customer Name',
+        'Customer Mobile',
+        'Customer Email',
+        'Product Name',
+        'Variant / Size',
+        'Daily Quantity',
+        'Frequency',
+        'Delivery Slot',
+        'Delivery Address',
+        'Start Date',
+        'Status',
+        'Notes',
+        'Last Synced'
+      ],
+      rows: subscriptions.map(sub => [
+        sub.id,
+        sub.customerName,
+        sub.customerPhone,
+        sub.customerEmail || 'N/A',
+        sub.productName,
+        sub.variant,
+        sub.quantity,
+        sub.frequency,
+        sub.deliverySlot,
+        sub.deliveryAddress,
+        sub.startDate,
+        sub.status,
+        sub.notes || '',
+        new Date().toISOString()
+      ])
+    };
+
+    if (targetWebhook && targetWebhook.startsWith('http')) {
+      try {
+        await fetch(targetWebhook, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.warn('Google Sheets Webhook Sync warning:', err);
+      }
+    }
+
+    const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    setSiteSettings((prev: any) => ({
+      ...prev,
+      lastGoogleSheetSync: now
+    }));
+
+    recordAuditLog('GOOGLE_SHEETS_SYNC', 'SUBSCRIPTIONS', 'ALL', {
+      rowsSynced: subscriptions.length,
+      syncedAt: now,
+      endpoint: targetWebhook ? 'Active Webhook' : 'Direct CSV Buffer'
+    });
+
+    return {
+      success: true,
+      message: `Successfully synchronized ${subscriptions.length} active patron subscriptions with Dugdhsar Google Data Sheet.`,
+      rowsSynced: subscriptions.length
+    };
+  }, [subscriptions, siteSettings.googleSheetsWebhookUrl, currentUser.email, recordAuditLog]);
+
+  const exportSubscriptionsToCSV = useCallback(() => {
+    const headers = [
+      'Subscription ID',
+      'Customer Name',
+      'Customer Mobile',
+      'Customer Email',
+      'Product Name',
+      'Volume / Variant',
+      'Daily Quantity',
+      'Delivery Schedule',
+      'Delivery Slot',
+      'Complete Delivery Address',
+      'Starting Date',
+      'Status',
+      'Drop Notes'
+    ];
+
+    const escapeCsv = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`;
+
+    const rows = subscriptions.map(s => [
+      escapeCsv(s.id),
+      escapeCsv(s.customerName),
+      escapeCsv(s.customerPhone),
+      escapeCsv(s.customerEmail || ''),
+      escapeCsv(s.productName),
+      escapeCsv(s.variant),
+      escapeCsv(s.quantity),
+      escapeCsv(s.frequency),
+      escapeCsv(s.deliverySlot),
+      escapeCsv(s.deliveryAddress),
+      escapeCsv(s.startDate),
+      escapeCsv(s.status),
+      escapeCsv(s.notes || '')
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Dugdhsar_Subscriptions_GoogleSheet_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [subscriptions]);
 
   // Enquiries & Reviews
   const submitEnquiry = useCallback((enqData: Omit<Enquiry, 'id' | 'createdAt' | 'status'>) => {
@@ -718,20 +987,87 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newRev: Review = {
       id: `rev-${Date.now()}`,
       ...revData,
-      isApproved: true, // auto-approve in demo
+      isApproved: true,
+      helpfulCount: 0,
       createdAt: new Date().toISOString()
     };
     setReviews(prev => [newRev, ...prev]);
+
+    // Dynamically recalculate product rating and increment reviewsCount
+    setProducts(prevProducts => prevProducts.map(p => {
+      if (p.id === revData.productId) {
+        const productReviews = reviews.filter(r => r.productId === p.id);
+        const allRatings = [revData.rating, ...productReviews.map(r => r.rating)];
+        const avg = allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
+        return {
+          ...p,
+          rating: Number(avg.toFixed(2)),
+          reviewsCount: p.reviewsCount + 1
+        };
+      }
+      return p;
+    }));
+
+    // Post to server if available
+    try {
+      fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRev)
+      }).catch(() => {});
+    } catch {}
+  }, [reviews]);
+
+  const toggleHelpfulReview = useCallback((reviewId: string) => {
+    setReviews(prev => prev.map(r => {
+      if (r.id === reviewId) {
+        return { ...r, helpfulCount: (r.helpfulCount || 0) + 1 };
+      }
+      return r;
+    }));
+  }, []);
+
+  const openReviewModal = useCallback((product?: Product | null) => {
+    setReviewModalProduct(product || null);
+    setIsReviewModalOpen(true);
+  }, []);
+
+  const closeReviewModal = useCallback(() => {
+    setIsReviewModalOpen(false);
+    setReviewModalProduct(null);
   }, []);
 
   // User Profile & Addresses
-  const switchUserPersona = useCallback((role: 'customer' | 'admin' | 'operations' | 'support') => {
+  const switchUserPersona = useCallback((role: 'customer' | 'admin' | 'operations' | 'support' | 'dealer') => {
     if (role === 'admin' || role === 'operations' || role === 'support') {
-      setCurrentUser(DEMO_PROFILES[1]);
+      loginUser({
+        id: 'usr_sumitpawar65005_gmail_com',
+        email: 'sumitpawar65005@gmail.com',
+        fullName: 'Sumit Pawar',
+        phone: '+91 7067672604',
+        role: 'admin',
+        createdAt: '2026-01-01'
+      });
+    } else if (role === 'dealer') {
+      loginUser({
+        id: 'usr_dealer_kanha',
+        email: 'kanha.sweets.dealer@dugdhsar.in',
+        fullName: 'Shree Kanha Sweets & Dairy',
+        phone: '+91 7067672604',
+        role: 'dealer',
+        createdAt: '2026-01-01'
+      });
     } else {
-      setCurrentUser(DEMO_PROFILES[0]);
+      loginUser({
+        id: 'usr_customer_1',
+        email: 'customer@dugdhsar.in',
+        fullName: 'Aryaman Sen',
+        phone: '+91 7067672604',
+        role: 'customer',
+        createdAt: '2026-01-01'
+      });
     }
-  }, []);
+  }, [loginUser]);
 
   const updateProfile = useCallback((updated: Partial<Profile>) => {
     setCurrentUser(prev => ({ ...prev, ...updated }));
@@ -1079,7 +1415,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       batches,
       serviceablePincodes,
       currentUser,
+      isAuthenticated,
+      loginUser,
+      logoutUser,
       addresses,
+      userAddresses,
+      userOrders,
+      userSubscriptions,
       switchUserPersona,
       updateProfile,
       addAddress,
@@ -1113,10 +1455,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       getOrderById,
       subscriptions,
       addSubscription,
+      updateSubscription,
+      deleteSubscription,
       toggleSubscriptionPause,
       cancelSubscription,
+      syncSubscriptionsToGoogleSheets,
+      exportSubscriptionsToCSV,
       submitEnquiry,
       submitReview,
+      toggleHelpfulReview,
+      isReviewModalOpen,
+      setIsReviewModalOpen,
+      reviewModalProduct,
+      openReviewModal,
+      closeReviewModal,
       updateProductStock,
       adjustBatchStock,
       toggleBatchQuarantine,

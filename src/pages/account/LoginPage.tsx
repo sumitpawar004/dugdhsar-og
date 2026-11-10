@@ -19,9 +19,10 @@ import {
   getSupabaseConfig, 
   saveSupabaseConfig 
 } from '../../lib/supabase';
+import { GoogleLoginModal } from '../../components/GoogleLoginModal';
 
 export const LoginPage: React.FC = () => {
-  const { switchUserPersona, updateProfile } = useStore();
+  const { switchUserPersona, updateProfile, loginUser } = useStore();
   const { navigate } = useRouter();
 
   const [email, setEmail] = useState('customer@dugdhsar.in');
@@ -60,23 +61,11 @@ export const LoginPage: React.FC = () => {
     setIsLoading(false);
 
     if (res.success && res.user) {
-      if (res.user.role === 'admin' || email.includes('admin')) {
-        switchUserPersona('admin');
-        updateProfile({
-          fullName: res.user.fullName,
-          email: res.user.email,
-          phone: res.user.phone
-        });
-        navigate('/admin');
-      } else {
-        switchUserPersona('customer');
-        updateProfile({
-          fullName: res.user.fullName,
-          email: res.user.email,
-          phone: res.user.phone
-        });
-        navigate('/account/daily-milk-tracking');
-      }
+      loginUser({
+        ...res.user,
+        role: 'customer'
+      });
+      navigate('/account/daily-milk-tracking');
     } else {
       setErrorMessage(res.error || 'Invalid credentials. Please verify your email and password.');
     }
@@ -92,18 +81,19 @@ export const LoginPage: React.FC = () => {
     }, 1500);
   };
 
-  const handleQuickDemo = (role: 'customer' | 'admin') => {
-    if (role === 'admin') {
-      setEmail('admin@dugdhsar.in');
-      setPassword('admin123');
-      switchUserPersona('admin');
-      navigate('/admin');
-    } else {
-      setEmail('customer@dugdhsar.in');
-      setPassword('password123');
-      switchUserPersona('customer');
-      navigate('/account/daily-milk-tracking');
-    }
+  const handleQuickCustomerDemo = () => {
+    setEmail('customer@dugdhsar.in');
+    setPassword('password123');
+    loginUser({
+      id: 'usr-customer-1',
+      email: 'customer@dugdhsar.in',
+      fullName: 'Ananya Sharma (Vedic Patron)',
+      phone: '+91 7067672604',
+      role: 'customer',
+      createdAt: '2026-01-01',
+      authProvider: 'password'
+    });
+    navigate('/account/daily-milk-tracking');
   };
 
   // Google Login handling
@@ -118,29 +108,16 @@ export const LoginPage: React.FC = () => {
     const targetEmail = selectedEmail || googleCustomEmail || 'sumitpawar65005@gmail.com';
     const targetName = selectedName || (targetEmail.includes('sumit') ? 'Sumit Pawar' : targetEmail.split('@')[0]);
 
-    const res = await authService.signInWithGoogle(targetEmail, targetName);
+    // Force role: customer for user portal login
+    const res = await authService.signInWithGoogle(targetEmail, targetName, undefined, 'customer');
     setIsLoading(false);
 
     if (res.success && res.user) {
-      if (res.user.role === 'admin' || targetEmail.includes('admin') || targetEmail === 'sumitpawar65005@gmail.com') {
-        switchUserPersona('admin');
-        updateProfile({
-          fullName: res.user.fullName,
-          email: res.user.email,
-          phone: res.user.phone,
-          avatarUrl: res.user.avatarUrl
-        });
-        navigate('/admin/dashboard');
-      } else {
-        switchUserPersona('customer');
-        updateProfile({
-          fullName: res.user.fullName,
-          email: res.user.email,
-          phone: res.user.phone,
-          avatarUrl: res.user.avatarUrl
-        });
-        navigate('/account/daily-milk-tracking');
-      }
+      loginUser({
+        ...res.user,
+        role: 'customer'
+      });
+      navigate('/account/daily-milk-tracking');
     } else {
       setErrorMessage(res.error || 'Google login failed. Please try again.');
     }
@@ -224,25 +201,21 @@ export const LoginPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Demo Persona Shortcuts */}
+          {/* 1-Tap Patron Demo Access */}
           <div className="mb-5 p-3 bg-[#F8F4EC] rounded-2xl border border-[#D8C9AD]">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#A34F37] block mb-2 text-center">
-              1-Tap Fast Persona Access
-            </span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#263D30] block">
+                  Quick Patron Access
+                </span>
+                <span className="text-[11px] text-[#302C26]/70">Demo customer with Seoni milk deliveries</span>
+              </div>
               <button
                 type="button"
-                onClick={() => handleQuickDemo('customer')}
-                className="py-2 px-3 text-xs font-semibold bg-[#FAF6EE] rounded-xl border border-[#D8C9AD] hover:bg-[#263D30] hover:text-[#FAF6EE] transition-colors cursor-pointer text-center"
+                onClick={handleQuickCustomerDemo}
+                className="py-1.5 px-3 text-xs font-bold bg-[#263D30] text-[#FAF6EE] hover:bg-[#1A2B22] rounded-xl transition-colors cursor-pointer"
               >
-                Customer Portal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickDemo('admin')}
-                className="py-2 px-3 text-xs font-semibold bg-[#263D30] text-[#FAF6EE] rounded-xl hover:bg-[#1A2B22] transition-colors cursor-pointer text-center"
-              >
-                Admin Dispatch
+                1-Tap Patron Login
               </button>
             </div>
           </div>
@@ -339,6 +312,44 @@ export const LoginPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Separate Portals Direct Switcher */}
+          <div className="mt-5 pt-4 border-t border-[#D8C9AD]/50">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[#302C26]/60 block text-center mb-2.5">
+              Looking for Staff & Enterprise Portals?
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/manager/login')}
+                className="p-2.5 bg-[#FAF6EE] hover:bg-[#F3EDE1] rounded-xl border border-[#D8C9AD] text-center transition-all group cursor-pointer"
+              >
+                <div className="text-sm mb-1 group-hover:scale-110 transition-transform">📋</div>
+                <div className="text-[11px] font-bold text-[#263D30]">Manager</div>
+                <div className="text-[9px] text-[#302C26]/60">Operations</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/admin/login')}
+                className="p-2.5 bg-[#FAF6EE] hover:bg-[#F3EDE1] rounded-xl border border-[#D8C9AD] text-center transition-all group cursor-pointer"
+              >
+                <div className="text-sm mb-1 group-hover:scale-110 transition-transform">🛡️</div>
+                <div className="text-[11px] font-bold text-[#A34F37]">Admin</div>
+                <div className="text-[9px] text-[#302C26]/60">Super Console</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/dealer/login')}
+                className="p-2.5 bg-[#FAF6EE] hover:bg-[#F3EDE1] rounded-xl border border-[#D8C9AD] text-center transition-all group cursor-pointer"
+              >
+                <div className="text-sm mb-1 group-hover:scale-110 transition-transform">🏢</div>
+                <div className="text-[11px] font-bold text-[#C2A36C]">Dealer</div>
+                <div className="text-[9px] text-[#302C26]/60">B2B Wholesale</div>
+              </button>
+            </div>
+          </div>
+
           {/* Supabase Project Configuration Toggle */}
           <div className="mt-4 pt-3 border-t border-[#D8C9AD]/40 text-center">
             <button
@@ -393,99 +404,12 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Google Account Selector Modal */}
-        {showGoogleModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-neutral-200">
-              <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
-                <div className="flex items-center gap-2">
-                  <GoogleGIcon />
-                  <span className="font-semibold text-neutral-900 text-sm">Choose a Google Account</span>
-                </div>
-                <button
-                  onClick={() => setShowGoogleModal(false)}
-                  className="text-neutral-400 hover:text-neutral-700 p-1 text-sm cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <p className="text-xs text-neutral-500 mt-2 mb-4">
-                to continue to <strong className="text-neutral-800">Dugdhsar Dairy Platform</strong>
-              </p>
-
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGoogleModal(false);
-                    handleGoogleLogin('sumitpawar65005@gmail.com', 'Sumit Pawar');
-                  }}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-neutral-50 border border-neutral-200 transition-colors text-left cursor-pointer group"
-                >
-                  <div className="w-10 h-10 rounded-full bg-[#124A86] text-white flex items-center justify-center font-bold text-sm">
-                    SP
-                  </div>
-                  <div className="flex-1 truncate">
-                    <div className="text-xs font-bold text-neutral-900 group-hover:text-[#124A86]">Sumit Pawar</div>
-                    <div className="text-[11px] text-neutral-500 truncate">sumitpawar65005@gmail.com</div>
-                  </div>
-                  <span className="text-[10px] font-semibold text-[#A87520] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                    Admin
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGoogleModal(false);
-                    handleGoogleLogin('customer@dugdhsar.in', 'Ramesh Patel');
-                  }}
-                  className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-neutral-50 border border-neutral-200 transition-colors text-left cursor-pointer group"
-                >
-                  <div className="w-10 h-10 rounded-full bg-[#5C922B] text-white flex items-center justify-center font-bold text-sm">
-                    RP
-                  </div>
-                  <div className="flex-1 truncate">
-                    <div className="text-xs font-bold text-neutral-900 group-hover:text-[#5C922B]">Ramesh Patel (Patron)</div>
-                    <div className="text-[11px] text-neutral-500 truncate">customer@dugdhsar.in</div>
-                  </div>
-                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                    Customer
-                  </span>
-                </button>
-              </div>
-
-              {/* Custom Google Email Input */}
-              <div className="mt-4 pt-3 border-t border-neutral-200">
-                <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
-                  Or use another Google Account:
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={googleCustomEmail}
-                    onChange={(e) => setGoogleCustomEmail(e.target.value)}
-                    placeholder="yourname@gmail.com"
-                    className="flex-1 px-3 py-2 text-xs border border-neutral-300 rounded-xl focus:outline-none focus:border-[#124A86]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (googleCustomEmail.trim()) {
-                        setShowGoogleModal(false);
-                        handleGoogleLogin(googleCustomEmail.trim());
-                      }
-                    }}
-                    className="px-4 py-2 bg-[#124A86] hover:bg-[#0e3a68] text-white text-xs font-bold rounded-xl cursor-pointer"
-                  >
-                    Continue
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
+        <GoogleLoginModal 
+          isOpen={showGoogleModal} 
+          onClose={() => setShowGoogleModal(false)} 
+          targetRole="customer" 
+          onSuccessRedirect="/account/daily-milk-tracking" 
+        />
 
       </div>
     </div>

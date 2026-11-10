@@ -10,16 +10,25 @@ interface RouterContextType {
 
 const RouterContext = createContext<RouterContextType | undefined>(undefined);
 
-export const RouterProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const RouterProvider: React.FC<{ children: React.ReactNode; initialPath?: string }> = ({ children, initialPath }) => {
   const [path, setPath] = useState<string>(() => {
-    return window.location.pathname || '/';
+    if (initialPath) return initialPath;
+    if (typeof window !== 'undefined') {
+      return window.location.pathname || '/';
+    }
+    return '/';
   });
 
   const [searchParams, setSearchParams] = useState<URLSearchParams>(() => {
-    return new URLSearchParams(window.location.search);
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search);
+    }
+    return new URLSearchParams();
   });
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const handlePopState = () => {
       setPath(window.location.pathname || '/');
       setSearchParams(new URLSearchParams(window.location.search));

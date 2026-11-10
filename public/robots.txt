@@ -1,0 +1,40 @@
+# Robots.txt for DUGDHSAR Vedic Dairy (https://dugdhsar.in/)
+# Compliant with Google Search Essentials & Verified AI Search Engines (2026 Core Guidance)
+
+User-agent: *
+Allow: /
+Allow: /assets/
+Allow: /api/instagram/feed
+Allow: /api/products
+Allow: /api/categories
+Allow: /api/reviews
+Allow: /api/health
+Disallow: /api/
+Disallow: /admin
+Disallow: /dealer
+Disallow: /manager
+Disallow: /checkout
+Disallow: /cart
+Disallow: /account/
+
+# Verified AI Answer Engine Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+# Sitemap Index
+Sitemap: https://dugdhsar.in/sitemap.xml

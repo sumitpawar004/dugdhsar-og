@@ -13,15 +13,17 @@ import {
   Headphones, 
   Briefcase 
 } from 'lucide-react';
+import { GoogleLoginModal } from '../../components/GoogleLoginModal';
 
 export const AdminLoginPage: React.FC = () => {
-  const { currentUser, switchUserPersona, recordAuditLog } = useStore();
+  const { currentUser, switchUserPersona, recordAuditLog, loginUser } = useStore();
   const { navigate } = useRouter();
 
   const [email, setEmail] = useState('admin@dugdhsar.in');
   const [password, setPassword] = useState('••••••••');
   const [selectedRole, setSelectedRole] = useState<'super_admin' | 'inventory_officer' | 'dispatch_lead' | 'customer_desk' | 'dealer_manager'>('super_admin');
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
+  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 
   const roleProfiles = [
     {
@@ -148,6 +150,14 @@ export const AdminLoginPage: React.FC = () => {
               <span>Sign in with Google (Super Admin)</span>
               <span className="text-[10px] text-neutral-500 font-normal">sumitpawar65005@gmail.com</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setIsGoogleModalOpen(true)}
+              className="mt-2 text-[11px] text-[#C2A36C] hover:underline cursor-pointer font-medium block mx-auto"
+            >
+              Or sign in with another administrator Google Gmail account →
+            </button>
           </div>
 
           <div className="relative my-6">
@@ -244,23 +254,47 @@ export const AdminLoginPage: React.FC = () => {
             </button>
           </form>
 
-          {/* Direct links */}
-          <div className="mt-6 pt-4 border-t border-[#3A5243] flex items-center justify-between text-[11px] text-[#F3EDE1]/70">
-            <button
-              onClick={() => navigate('/')}
-              className="hover:text-white transition-colors cursor-pointer"
-            >
-              ← Back to Storefront
-            </button>
-            <button
-              onClick={() => navigate('/dealer/login')}
-              className="text-[#C2A36C] hover:underline cursor-pointer font-semibold"
-            >
-              B2B Dealer Portal →
-            </button>
+          {/* Separate Portals Switcher */}
+          <div className="mt-6 pt-4 border-t border-[#3A5243] space-y-2">
+            <div className="flex items-center justify-between text-[11px] text-[#F3EDE1]/70">
+              <button
+                onClick={() => navigate('/')}
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                ← Back to Storefront
+              </button>
+              <button
+                onClick={() => navigate('/login')}
+                className="hover:text-white transition-colors cursor-pointer"
+              >
+                Patron Login →
+              </button>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-1 text-[11px]">
+              <button
+                onClick={() => navigate('/manager/login')}
+                className="text-[#C2A36C] hover:underline cursor-pointer font-semibold"
+              >
+                📋 Operations Manager Portal
+              </button>
+              <span className="text-[#3A5243]">|</span>
+              <button
+                onClick={() => navigate('/dealer/login')}
+                className="text-[#C2A36C] hover:underline cursor-pointer font-semibold"
+              >
+                🏢 B2B Dealer Portal
+              </button>
+            </div>
           </div>
 
         </div>
+
+        <GoogleLoginModal
+          isOpen={isGoogleModalOpen}
+          onClose={() => setIsGoogleModalOpen(false)}
+          targetRole="admin"
+          onSuccessRedirect="/admin/dashboard"
+        />
 
       </div>
     </div>
