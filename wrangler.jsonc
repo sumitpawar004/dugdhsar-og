@@ -19,12 +19,48 @@
       "id": "REPLACE_WITH_KV_ID"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dugdhsar-prod",
+      "database_id": "REPLACE_WITH_D1_ID"
+    }
+  ],
   "triggers": {
     "crons": [
       "0 3 * * *"
     ]
   },
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "env": {
+    "staging": {
+      "name": "dugdhsar-staging",
+      "kv_namespaces": [
+        {
+          "binding": "CACHE",
+          "id": "REPLACE_WITH_STAGING_KV_ID"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "dugdhsar-staging",
+          "database_id": "REPLACE_WITH_STAGING_D1_ID"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "APP_URL": "https://staging.dugdhsar.in"
+      }
+    },
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production",
+        "APP_URL": "https://dugdhsar.in"
+      }
+    }
   }
 }

@@ -20,7 +20,7 @@ export const AdminLoginPage: React.FC = () => {
   const { navigate } = useRouter();
 
   const [email, setEmail] = useState('admin@dugdhsar.in');
-  const [password, setPassword] = useState('••••••••');
+  const [password, setPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState<'super_admin' | 'inventory_officer' | 'dispatch_lead' | 'customer_desk' | 'dealer_manager'>('super_admin');
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);

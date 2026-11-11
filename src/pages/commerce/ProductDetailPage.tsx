@@ -15,6 +15,7 @@ import {
   Calendar,
   AlertCircle
 } from 'lucide-react';
+import { usePageSEO } from '../../lib/seo';
 
 export const ProductDetailPage: React.FC = () => {
   const { 
@@ -37,6 +38,14 @@ export const ProductDetailPage: React.FC = () => {
   // Find product by slug or id
   const product = products.find(p => p.slug === params.slug || p.id === params.slug) || products[0];
   const productReviews = reviews.filter(r => r.productId === product.id);
+
+  usePageSEO({
+    title: `${product.name} — Pure Vedic Gir Cow Dairy`,
+    description: product.description,
+    ogType: 'product',
+    ogImage: product.images[0]?.imageUrl,
+    ogImageAlt: product.name,
+  });
 
   // Active state
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant>(product.variants[0]);

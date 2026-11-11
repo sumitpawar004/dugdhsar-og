@@ -1,33 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
 import * as jose from 'jose';
 import { WorkerEnv, AuthUser, UserRole } from './types';
+import { validateEnv } from './env';
+import { parseCookies, setSessionCookies, clearSessionCookies } from './cookies';
+import { UnauthorizedError, ForbiddenError } from './errors/AppError';
+import { logger } from './logger';
 
 // Google JWKS keyset cache
 const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
-const DEFAULT_JWT_SECRET = 'dugdhsar_vedic_dairy_session_jwt_secret_2026';
-
-function getEnvString(env: WorkerEnv | undefined, key: string): string {
-  if (env && typeof env[key] === 'string') return env[key];
-  if (typeof process !== 'undefined' && process?.env && typeof process.env[key] === 'string') {
-    return process.env[key] || '';
-  }
-  return '';
-}
+// In-memory revoked token JTI cache (jti -> expiry timestamp ms)
+const revokedJtiStore = new Map<string, number>();
 
 function getJwtSecretBytes(env?: WorkerEnv): Uint8Array {
-  const secret = getEnvString(env, 'JWT_SECRET') || DEFAULT_JWT_SECRET;
-  return new TextEncoder().encode(secret);
+  const validated = validateEnv(env);
+  return new TextEncoder().encode(validated.JWT_SECRET);
 }
 
-// Map email to role (Super admin, dealer, or customer)
-export function determineUserRole(email: string, env?: WorkerEnv, requestedRole?: string): UserRole {
+/**
+ * Map email to role (Super admin, dealer, or customer).
+ * Strictly prevents client-driven privilege escalation:
+ * Super admin is granted ONLY if email is in SUPER_ADMIN_EMAILS.
+ * Dealer is granted ONLY if email is in DEALER_EMAILS.
+ */
+export function determineUserRole(email: string, env?: WorkerEnv, _requestedRole?: string): UserRole {
   const cleanEmail = email.toLowerCase().trim();
-  
+  const validated = validateEnv(env);
+
   // Super Admin emails
-  const envSuperAdmins = getEnvString(env, 'SUPER_ADMIN_EMAILS')
+  const envSuperAdmins = (validated.SUPER_ADMIN_EMAILS || '')
     .split(',')
-    .map(e => e.trim().toLowerCase())
+    .map((e: string) => e.trim().toLowerCase())
     .filter(Boolean);
 
   const defaultSuperAdmins = ['sumitpawar65005@gmail.com', 'admin@dugdhsar.in'];
@@ -36,34 +39,37 @@ export function determineUserRole(email: string, env?: WorkerEnv, requestedRole?
   }
 
   // Dealer emails
-  const envDealers = getEnvString(env, 'DEALER_EMAILS')
+  const envDealers = (validated.DEALER_EMAILS || '')
     .split(',')
-    .map(e => e.trim().toLowerCase())
+    .map((e: string) => e.trim().toLowerCase())
     .filter(Boolean);
 
   const defaultDealers = ['dealer@dugdhsar.in', 'manager@dugdhsar.in'];
-  if (defaultDealers.includes(cleanEmail) || envDealers.includes(cleanEmail) || cleanEmail.includes('dealer')) {
-    return 'dealer';
-  }
-
-  if (requestedRole === 'super_admin' && (cleanEmail.includes('admin') || cleanEmail.includes('sumit'))) {
-    return 'super_admin';
-  }
-
-  if (requestedRole === 'dealer' && (cleanEmail.includes('dealer') || cleanEmail.includes('manager'))) {
+  if (defaultDealers.includes(cleanEmail) || envDealers.includes(cleanEmail)) {
     return 'dealer';
   }
 
   return 'customer';
 }
 
-// Verify Google ID token against Google's public JWKS using WebCrypto
-export async function verifyGoogleIdToken(idToken: string, expectedAudience?: string): Promise<{ email: string; name: string; picture?: string; sub: string }> {
+/**
+ * Verify Google ID token against Google's public JWKS using jose
+ * Enforces email_verified === true to prevent impersonation attacks.
+ */
+export async function verifyGoogleIdToken(
+  idToken: string,
+  expectedAudience?: string
+): Promise<{ email: string; name: string; picture?: string; sub: string }> {
   try {
     const { payload } = await jose.jwtVerify(idToken, GOOGLE_JWKS, {
       issuer: ['https://accounts.google.com', 'accounts.google.com'],
-      audience: expectedAudience || undefined
+      audience: expectedAudience || undefined,
     });
+
+    // Enforce email verification
+    if (payload.email_verified !== true) {
+      throw new Error('Google account email is not verified by Google');
+    }
 
     const email = payload.email as string;
     const name = (payload.name as string) || (email ? email.split('@')[0] : 'Patron');
@@ -71,41 +77,122 @@ export async function verifyGoogleIdToken(idToken: string, expectedAudience?: st
     const sub = payload.sub as string;
 
     if (!email) {
-      throw new Error('Google token did not contain an email address');
+      throw new Error('Google token does not contain an email address');
     }
 
     return { email, name, picture, sub };
   } catch (err: any) {
-    // If token verification fails with remote keys, fallback to basic decode in non-prod or throw
     throw new Error(`Google token verification failed: ${err.message}`);
   }
 }
 
-// Issue a signed session JWT (valid for 7 days)
-export async function createSessionJwt(user: AuthUser, env?: WorkerEnv): Promise<string> {
+/**
+ * Revoke a token by JTI (stored with expiry)
+ */
+export async function revokeToken(jti: string, expiresAtMs: number, env?: WorkerEnv): Promise<void> {
+  revokedJtiStore.set(jti, expiresAtMs);
+
+  // If Cloudflare KV is available, also persist revocation
+  if (env?.CACHE) {
+    try {
+      const ttlSeconds = Math.max(60, Math.ceil((expiresAtMs - Date.now()) / 1000));
+      await env.CACHE.put(`revoked_token:${jti}`, '1', { expirationTtl: ttlSeconds });
+    } catch (err: any) {
+      logger.warn('[Auth] KV token revocation write failed', { error: err.message });
+    }
+  }
+}
+
+/**
+ * Check if a JTI has been revoked
+ */
+export async function isTokenRevoked(jti: string, env?: WorkerEnv): Promise<boolean> {
+  const localExp = revokedJtiStore.get(jti);
+  if (localExp) {
+    if (Date.now() > localExp) {
+      revokedJtiStore.delete(jti);
+      return false;
+    }
+    return true;
+  }
+
+  if (env?.CACHE) {
+    try {
+      const kvVal = await env.CACHE.get(`revoked_token:${jti}`);
+      if (kvVal) return true;
+    } catch {
+      // ignore KV lookup failures
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Issue a signed short-lived session access JWT (15 minutes)
+ */
+export async function createSessionJwt(user: AuthUser, env?: WorkerEnv): Promise<{ token: string; jti: string }> {
   const secretBytes = getJwtSecretBytes(env);
-  const jwt = await new jose.SignJWT({
+  const jti = `jti_${crypto.randomUUID()}`;
+
+  const token = await new jose.SignJWT({
     id: user.id,
     email: user.email,
     fullName: user.fullName,
     role: user.role,
     avatarUrl: user.avatarUrl,
     dealerId: user.dealerId,
-    assignedPincodes: user.assignedPincodes
+    assignedPincodes: user.assignedPincodes,
+    tokenType: 'access',
   })
     .setProtectedHeader({ alg: 'HS256' })
+    .setJti(jti)
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime('15m')
     .sign(secretBytes);
 
-  return jwt;
+  return { token, jti };
 }
 
-// Verify session JWT from Authorization header
+/**
+ * Issue a rolling refresh JWT (30 days)
+ */
+export async function createRefreshToken(user: AuthUser, env?: WorkerEnv): Promise<{ token: string; jti: string }> {
+  const secretBytes = getJwtSecretBytes(env);
+  const jti = `ref_${crypto.randomUUID()}`;
+
+  const token = await new jose.SignJWT({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    tokenType: 'refresh',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setJti(jti)
+    .setIssuedAt()
+    .setExpirationTime('30d')
+    .sign(secretBytes);
+
+  return { token, jti };
+}
+
+/**
+ * Verify a session access token (checks signature, expiration, and revocation status)
+ */
 export async function verifySessionJwt(token: string, env?: WorkerEnv): Promise<AuthUser | null> {
   try {
     const secretBytes = getJwtSecretBytes(env);
     const { payload } = await jose.jwtVerify(token, secretBytes);
+
+    if (payload.tokenType && payload.tokenType !== 'access') {
+      return null;
+    }
+
+    if (payload.jti && (await isTokenRevoked(payload.jti, env))) {
+      logger.warn('[Auth] Revoked token used', { jti: payload.jti });
+      return null;
+    }
+
     return {
       id: (payload.id as string) || (payload.sub as string),
       email: payload.email as string,
@@ -113,26 +200,71 @@ export async function verifySessionJwt(token: string, env?: WorkerEnv): Promise<
       role: (payload.role as UserRole) || 'customer',
       avatarUrl: payload.avatarUrl as string | undefined,
       dealerId: payload.dealerId as string | undefined,
-      assignedPincodes: payload.assignedPincodes as string[] | undefined
+      assignedPincodes: payload.assignedPincodes as string[] | undefined,
     };
   } catch {
     return null;
   }
 }
 
-// Helper: extract auth user from Request
-export async function extractAuthUser(req: Request, env?: WorkerEnv): Promise<AuthUser | null> {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+/**
+ * Verify a refresh token
+ */
+export async function verifyRefreshToken(token: string, env?: WorkerEnv): Promise<{ id: string; email: string; role: UserRole; jti: string } | null> {
+  try {
+    const secretBytes = getJwtSecretBytes(env);
+    const { payload } = await jose.jwtVerify(token, secretBytes);
+
+    if (payload.tokenType !== 'refresh') {
+      return null;
+    }
+
+    const jti = payload.jti as string;
+    if (jti && (await isTokenRevoked(jti, env))) {
+      return null;
+    }
+
+    return {
+      id: payload.id as string,
+      email: payload.email as string,
+      role: (payload.role as UserRole) || 'customer',
+      jti,
+    };
+  } catch {
     return null;
   }
-  const token = authHeader.substring(7).trim();
+}
+
+/**
+ * Extract auth user from Request:
+ * 1. Checks Authorization: Bearer <token>
+ * 2. Checks cookie 'dugdhsar_access'
+ */
+export async function extractAuthUser(req: Request, env?: WorkerEnv): Promise<AuthUser | null> {
+  let token: string | undefined;
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+
+  if (!token) {
+    const cookies = parseCookies(req);
+    token = cookies['dugdhsar_access'];
+  }
+
+  if (!token) {
+    return null;
+  }
+
   return await verifySessionJwt(token, env);
 }
 
-// Middleware: attach user if token present (optional auth)
+/**
+ * Middleware: attach user to req.user if session token is valid
+ */
 export function authMiddleware(env?: WorkerEnv) {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       const user = await extractAuthUser(req, (req as any).env || env);
       (req as any).user = user;
@@ -143,34 +275,33 @@ export function authMiddleware(env?: WorkerEnv) {
   };
 }
 
-// Middleware: require authenticated user
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+/**
+ * Middleware: require authenticated user (returns 401 UnauthorizedError)
+ */
+export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const user: AuthUser | undefined = (req as any).user;
   if (!user) {
-    return res.status(401).json({
-      success: false,
-      error: 'Authentication required. Please sign in with your verified Google account.'
-    });
+    return next(new UnauthorizedError('Authentication required. Please sign in with your verified Google account.'));
   }
   next();
 }
 
-// Middleware: require specific role(s) on server
+/**
+ * Middleware: require specific role(s) on server (returns 403 ForbiddenError)
+ */
 export function requireRole(allowedRoles: UserRole[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
     const user: AuthUser | undefined = (req as any).user;
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Authentication required. Please sign in.'
-      });
+      return next(new UnauthorizedError('Authentication required. Please sign in.'));
     }
 
     if (!allowedRoles.includes(user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: `Access denied. Role "${user.role}" does not have permission to access this resource. Required: ${allowedRoles.join(' or ')}.`
-      });
+      return next(
+        new ForbiddenError(
+          `Access denied. Role "${user.role}" does not have permission to access this resource. Required: ${allowedRoles.join(' or ')}.`
+        )
+      );
     }
 
     next();

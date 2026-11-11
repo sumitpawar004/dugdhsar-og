@@ -82,9 +82,8 @@ export const getLocalUsers = (): LocalUser[] => {
           phone: '+91 7067672604',
           role: 'customer',
           avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-          authProvider: 'password',
-          createdAt: new Date().toISOString(),
-          passwordHash: 'password123'
+          authProvider: 'google',
+          createdAt: new Date().toISOString()
         },
         {
           id: 'usr-google-1',
@@ -103,9 +102,8 @@ export const getLocalUsers = (): LocalUser[] => {
           phone: '+91 7067672604',
           role: 'manager',
           avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-          authProvider: 'password',
-          createdAt: new Date().toISOString(),
-          passwordHash: 'manager123'
+          authProvider: 'google',
+          createdAt: new Date().toISOString()
         },
         {
           id: 'usr-admin-1',
@@ -114,9 +112,8 @@ export const getLocalUsers = (): LocalUser[] => {
           phone: '+91 7067672604',
           role: 'admin',
           avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&q=80',
-          authProvider: 'password',
-          createdAt: new Date().toISOString(),
-          passwordHash: 'admin123'
+          authProvider: 'google',
+          createdAt: new Date().toISOString()
         }
       ];
       localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(defaultUsers));

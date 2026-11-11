@@ -76,16 +76,19 @@ export const ContactPage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-[#F3EDE1]/90 leading-snug">
-                      DUGDHSAR Dairy, 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661
+                      DUGDHSAR Dairy, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, MP 480661
+                    </p>
+                    <p className="text-[10px] font-mono text-[#C2A36C] pt-0.5">
+                      GPS: 22°05'09.3"N 79°33'27.9"E
                     </p>
                     <a
-                      href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
+                      href="https://www.google.com/maps/dir/?api=1&destination=22.085917,79.55775"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#C2A36C] hover:bg-[#d4b476] text-[#1F3327] font-black text-[11px] uppercase tracking-wider rounded-lg transition-all shadow-sm active:scale-95"
                     >
                       <Navigation className="w-3.5 h-3.5 fill-[#1F3327]" />
-                      <span>Get Directions</span>
+                      <span>Get Directions (Exact Pin)</span>
                     </a>
                   </div>
                 </div>

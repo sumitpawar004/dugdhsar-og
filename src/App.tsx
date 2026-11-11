@@ -32,6 +32,14 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F4EC] text-[#302C26] flex flex-col relative overflow-x-hidden w-full max-w-full pb-16 sm:pb-0 selection:bg-[#C2A36C] selection:text-[#263D30]">
+      {/* WCAG 2.2 AA Skip Link for Keyboard & Screen Reader Users */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-[#263D30] focus:text-[#F8F4EC] focus:font-medium focus:rounded-lg focus:shadow-xl focus:ring-2 focus:ring-[#C2A36C] focus:outline-none"
+      >
+        Skip to main content
+      </a>
+
       {/* Exact Video Milk Bottle Silhouette Filling Preloader */}
       <Preloader onComplete={() => setIsPreloaderDone(true)} />
 
@@ -41,7 +49,7 @@ const AppContent: React.FC = () => {
         <Navbar />
 
         {/* Dynamic Multi-Route Viewport Engine with Error Boundary */}
-        <main className="flex-1 w-full">
+        <main id="main-content" tabIndex={-1} className="flex-1 w-full focus:outline-none" role="main">
           <ErrorBoundary>
             <AppRouter />
           </ErrorBoundary>

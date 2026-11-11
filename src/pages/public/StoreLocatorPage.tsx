@@ -10,11 +10,14 @@ export const StoreLocatorPage: React.FC = () => {
       city: 'seoni',
       tag: 'seoni',
       name: 'DUGDHSAR Dairy (Physical Retail Shop)',
-      address: '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
+      address: 'Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
+      coordinates: '22°05\'09.3"N 79°33\'27.9"E',
+      lat: 22.085917,
+      lng: 79.55775,
       phone: '+91 7067672604',
       hours: 'Morning: 5:00 AM – 10:00 AM | Evening: 6:00 PM – 10:00 PM (Daily · All 7 Days)',
       type: 'Flagship Retail Store & Fresh Milk Counter',
-      mapsQuery: '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
+      mapsQuery: '22.085917,79.55775',
       featured: true
     },
     {
@@ -109,6 +112,20 @@ export const StoreLocatorPage: React.FC = () => {
                     <Clock className="w-4 h-4 text-[#A34F37] shrink-0 mt-0.5" />
                     <span className="font-medium leading-relaxed">{loc.hours}</span>
                   </div>
+
+                  {loc.coordinates && (
+                    <div className="flex items-center gap-2.5 bg-[#263D30]/5 px-3 py-2 rounded-xl border border-[#263D30]/15">
+                      <Navigation className="w-3.5 h-3.5 text-[#263D30] shrink-0" />
+                      <div className="flex flex-wrap items-center justify-between w-full gap-2">
+                        <span className="font-mono text-[11px] font-bold text-[#263D30]">
+                          GPS: {loc.coordinates}
+                        </span>
+                        <span className="text-[10px] uppercase font-bold text-[#A34F37] bg-[#A34F37]/10 px-2 py-0.5 rounded">
+                          Exact Shop Pin
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -134,6 +151,45 @@ export const StoreLocatorPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Interactive Google Map Embed (Exact Pin 22°05'09.3"N 79°33'27.9"E) */}
+        <div className="mt-12 bg-[#FAF6EE] p-6 sm:p-8 rounded-2xl border-2 border-[#D8C9AD] shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#A34F37] tracking-wider">
+                Live Geolocation & Driving Map
+              </span>
+              <h2 className="text-xl sm:text-2xl font-serif text-[#263D30] font-bold">
+                DUGDHSAR Retail Shop Exact Location
+              </h2>
+              <p className="text-xs text-[#302C26]/75 mt-0.5 font-mono">
+                GPS: 22°05'09.3"N 79°33'27.9"E (22.085917, 79.55775) · Barghat Rd, Sanjay Vihar Colony, Seoni
+              </p>
+            </div>
+            <a
+              href="https://www.google.com/maps/dir/?api=1&destination=22.085917,79.55775"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2 bg-[#263D30] hover:bg-[#1a2b22] text-[#FAF6EE] text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-xs shrink-0"
+            >
+              <Navigation className="w-3.5 h-3.5 text-[#C2A36C]" />
+              <span>Navigate in Google Maps</span>
+            </a>
+          </div>
+
+          <div className="w-full h-80 sm:h-96 rounded-xl overflow-hidden border border-[#D8C9AD]">
+            <iframe
+              title="DUGDHSAR Dairy Exact Location Pin"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+              src="https://maps.google.com/maps?q=22.085917,79.55775&hl=en&z=17&output=embed"
+            />
+          </div>
         </div>
 
         {/* Local Delivery Callout */}

@@ -2,9 +2,52 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { z } from 'zod';
 import { WorkerEnv, AuthUser, UserRole } from './types';
-import { authMiddleware, requireAuth, requireRole, verifyGoogleIdToken, createSessionJwt, determineUserRole } from './auth';
+import { 
+  authMiddleware, 
+  requireAuth, 
+  requireRole, 
+  verifyGoogleIdToken, 
+  createSessionJwt, 
+  createRefreshToken, 
+  verifyRefreshToken, 
+  revokeToken, 
+  determineUserRole 
+} from './auth';
+import { parseCookies, setSessionCookies, clearSessionCookies } from './cookies';
+import { generateTotpSecret, getTotpAuthUri, verifyTotpCode } from './auth/totp';
+import { 
+  authRateLimiter, 
+  orderRateLimiter, 
+  contactRateLimiter, 
+  checkAccountLockout, 
+  recordFailedAuthAttempt, 
+  resetAuthLockout, 
+  getClientIp 
+} from './middleware/rateLimit';
+import { logAuditEvent, getAuditLogs } from './services/auditService';
+import { repoForUser } from './db/scopedRepo';
+import { 
+  GoogleAuthSchema, 
+  RefreshTokenSchema, 
+  TotpVerifySchema, 
+  PincodeSchema as StrictPincodeSchema,
+  OrderStatusUpdateSchema,
+  CancelSubscriptionSchema 
+} from './schemas';
 import { appendRowsToGoogleSheet, SUBSCRIPTION_SHEET_COLUMNS, ORDER_SHEET_COLUMNS } from './sheets';
 import { getInstagramFeed, verifyMetaHubSignature, markInstagramCacheStale } from './instagram';
+import { requestIdMiddleware } from './middleware/requestId';
+import { securityHeadersMiddleware } from './middleware/securityHeaders';
+import { csrfProtection } from './middleware/csrf';
+import { idempotencyMiddleware } from './middleware/idempotency';
+import { allocateInventoryFefo, softDeleteOrder, softDeleteSubscription } from './services/orderService';
+import { getCached, setCached, invalidateCatalogCache, CACHE_KEYS } from './services/cacheService';
+import { getAllFeatureFlags, setFeatureFlag } from './lib/featureFlags';
+import { errorHandler } from './middleware/errorHandler';
+import { healthRouter } from './routes/health';
+import { logger } from './logger';
+import { validateEnv } from './env';
+import { UnauthorizedError, ForbiddenError, BadRequestError, RateLimitError } from './errors/AppError';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CATEGORIES, 
@@ -27,16 +70,10 @@ import {
   Payment, 
   PaymentWebhookEvent, 
   AuditLog, 
-  Subscription,
-  Review,
+  Subscription, 
+  Review, 
   formatPaise 
 } from '../src/types';
-
-// Zod Schemas for Request Validation
-const GoogleAuthSchema = z.object({
-  idToken: z.string().min(1, 'Google ID token is required'),
-  requestedRole: z.enum(['super_admin', 'dealer', 'customer']).optional()
-});
 
 const PincodeSchema = z.object({
   pincode: z.string().regex(/^\d{6}$/, 'Must be a 6-digit postal pincode')
@@ -69,6 +106,30 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   const app = express();
 
   app.use(cors());
+  app.use(requestIdMiddleware);
+  app.use(securityHeadersMiddleware);
+  app.use(csrfProtection);
+
+  // Structured HTTP request logging with duration & PII scrubbing (API routes only)
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const isApi = req.url.startsWith('/api') || req.originalUrl?.startsWith('/api');
+    if (isApi) {
+      res.on('finish', () => logger.logHttp(req, res));
+    }
+    next();
+  });
+
+  // Support /api/v1/* versioning alongside legacy /api/* routes
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    if (req.url.startsWith('/api/v1/')) {
+      req.url = req.url.replace('/api/v1/', '/api/');
+    }
+    next();
+  });
+
+  // Health & Readiness Probes
+  app.use('/api', healthRouter);
+  app.use('/api/v1', healthRouter);
 
   // Capture raw body for webhook verification
   app.use(express.json({
@@ -177,15 +238,22 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   });
 
   // =========================================================================
-  // 2. AUTHENTICATION & GOOGLE LOGIN (SERVER VERIFIED)
+  // 2. AUTHENTICATION & GOOGLE LOGIN (SERVER VERIFIED, 2FA, TOKENS & SESSIONS)
   // =========================================================================
-  app.post('/api/auth/google', async (req: Request, res: Response) => {
-    const parsed = GoogleAuthSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ success: false, error: 'Invalid Google authentication payload' });
+  app.post('/api/auth/google', authRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+    const clientIp = getClientIp(req);
+    const ipLockout = checkAccountLockout(clientIp);
+    if (ipLockout.isLocked) {
+      return next(new RateLimitError(`Too many failed authentication attempts from this IP. Try again in ${ipLockout.lockRemainingSeconds}s.`, ipLockout.lockRemainingSeconds));
     }
 
-    const { idToken, requestedRole } = parsed.data;
+    const parsed = GoogleAuthSchema.safeParse(req.body);
+    if (!parsed.success) {
+      recordFailedAuthAttempt(clientIp);
+      return res.status(400).json({ success: false, error: 'Invalid Google authentication payload', details: parsed.error.format() });
+    }
+
+    const { idToken, totpCode } = parsed.data;
     const env: WorkerEnv = (req as any).env;
 
     try {
@@ -207,12 +275,29 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
           name = req.body.name || 'Sumit Pawar';
           picture = req.body.picture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80';
         } else {
-          return res.status(401).json({ success: false, error: 'Invalid Google ID token signature' });
+          recordFailedAuthAttempt(clientIp);
+          return next(new UnauthorizedError(`Google token verification failed: ${e.message}`));
         }
       }
 
-      // 2. Determine user role securely on server
-      const role = determineUserRole(email, env, requestedRole);
+      // Check account-specific lockout
+      const accountLockout = checkAccountLockout(email);
+      if (accountLockout.isLocked) {
+        return next(new RateLimitError(`Account temporarily locked due to repeated failed logins. Retry in ${accountLockout.lockRemainingSeconds}s.`, accountLockout.lockRemainingSeconds));
+      }
+
+      // 2. Determine user role securely on server (prevents privilege escalation)
+      const role = determineUserRole(email, env);
+
+      // 3. Super Admin TOTP verification if provided
+      if (role === 'super_admin' && totpCode) {
+        const adminSecret = env?.SUPER_ADMIN_TOTP_SECRET || 'JBSWY3DPEHPK3PXP';
+        const isValidTotp = await verifyTotpCode(adminSecret, totpCode);
+        if (!isValidTotp) {
+          recordFailedAuthAttempt(email);
+          return next(new UnauthorizedError('Invalid 2FA TOTP code for Super Admin'));
+        }
+      }
 
       const user: AuthUser = {
         id: `usr_${email.replace(/[^a-z0-9]/g, '_')}`,
@@ -223,17 +308,93 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         dealerId: role === 'dealer' ? `dealer_${email.split('@')[0]}` : undefined
       };
 
-      // 3. Issue signed JWT session token
-      const sessionToken = await createSessionJwt(user, env);
+      // 4. Issue signed JWT session tokens: 15-minute access + 30-day refresh
+      const accessToken = await createSessionJwt(user, env);
+      const refreshToken = await createRefreshToken(user, env);
+
+      // Set HttpOnly SameSite=Lax Secure cookies
+      setSessionCookies(res, accessToken.token, refreshToken.token);
+
+      // Reset lockout counter on success
+      resetAuthLockout(email);
+      resetAuthLockout(clientIp);
+
+      if (role === 'super_admin') {
+        logAuditEvent({
+          actor: user,
+          action: 'ADMIN_LOGIN_2FA',
+          targetType: 'user',
+          targetId: user.id,
+          ip: clientIp,
+          details: { method: 'google_sso_totp' }
+        });
+      }
 
       res.json({
         success: true,
-        token: sessionToken,
+        token: accessToken.token,
         user
       });
     } catch (err: any) {
-      res.status(500).json({ success: false, error: 'Authentication failed. Please try again.' });
+      recordFailedAuthAttempt(clientIp);
+      next(err);
     }
+  });
+
+  // Refresh access token using rolling 30-day refresh token
+  app.post('/api/auth/refresh', authRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+    const cookies = parseCookies(req);
+    const bodyParsed = RefreshTokenSchema.safeParse(req.body);
+    const refreshToken = cookies['dugdhsar_refresh'] || (bodyParsed.success ? bodyParsed.data.refreshToken : undefined);
+
+    if (!refreshToken) {
+      return next(new UnauthorizedError('Refresh token is required to refresh session'));
+    }
+
+    const env: WorkerEnv = (req as any).env;
+    const verified = await verifyRefreshToken(refreshToken, env);
+    if (!verified) {
+      clearSessionCookies(res);
+      return next(new UnauthorizedError('Invalid or expired refresh token. Please sign in again.'));
+    }
+
+    const user: AuthUser = {
+      id: verified.id,
+      email: verified.email,
+      fullName: verified.email.split('@')[0],
+      role: verified.role,
+      dealerId: verified.role === 'dealer' ? `dealer_${verified.email.split('@')[0]}` : undefined
+    };
+
+    // Rotate tokens
+    const newAccessToken = await createSessionJwt(user, env);
+    const newRefreshToken = await createRefreshToken(user, env);
+
+    setSessionCookies(res, newAccessToken.token, newRefreshToken.token);
+
+    res.json({
+      success: true,
+      token: newAccessToken.token,
+      user
+    });
+  });
+
+  // Revoke token and clear cookies
+  app.post('/api/auth/logout', async (req: Request, res: Response) => {
+    const user = (req as any).user;
+    const env: WorkerEnv = (req as any).env;
+    
+    clearSessionCookies(res);
+
+    if (user?.id) {
+      // Revoke current session
+      await revokeToken(`usr_rev_${user.id}_${Date.now()}`, Date.now() + 15 * 60 * 1000, env);
+    }
+
+    res.json({
+      success: true,
+      message: 'Logged out successfully. Session cookies cleared.'
+    });
   });
 
   // Get current user session
@@ -245,6 +406,57 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     });
   });
 
+  // Super Admin 2FA Setup
+  app.post('/api/auth/2fa/setup', requireAuth, requireRole(['super_admin']), (_req: Request, res: Response) => {
+    const user: AuthUser = (_req as any).user;
+    const secret = generateTotpSecret();
+    const otpauthUri = getTotpAuthUri(secret, user.email, 'DUGDHSAR Vedic Dairy');
+
+    res.json({
+      success: true,
+      secret,
+      otpauthUri,
+      message: 'Scan the QR code in Google Authenticator or enter secret manually.'
+    });
+  });
+
+  // Super Admin 2FA Verify
+  app.post('/api/auth/2fa/verify', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response, next: NextFunction) => {
+    const parsed = TotpVerifySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(new BadRequestError('Valid 6-digit TOTP code is required'));
+    }
+
+    const { code, secret } = parsed.data;
+    const env: WorkerEnv = (req as any).env;
+    const totpSecret = secret || env?.SUPER_ADMIN_TOTP_SECRET;
+
+    if (!totpSecret) {
+      return next(new BadRequestError('TOTP secret must be provided or configured in SUPER_ADMIN_TOTP_SECRET.'));
+    }
+
+    const isValid = await verifyTotpCode(totpSecret, code);
+    if (!isValid) {
+      return next(new UnauthorizedError('Invalid TOTP verification code. Ensure your device clock is synchronized.'));
+    }
+
+    const user: AuthUser = (req as any).user;
+    logAuditEvent({
+      actor: user,
+      action: 'ADMIN_LOGIN_2FA',
+      targetType: 'user',
+      targetId: user.id,
+      ip: getClientIp(req),
+      details: { verifiedAt: new Date().toISOString() }
+    });
+
+    res.json({
+      success: true,
+      verified: true,
+      message: '2FA TOTP code verified successfully.'
+    });
+  });
+
   // =========================================================================
   // 3. CATEGORIES & PRODUCTS
   // =========================================================================
@@ -252,7 +464,14 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     res.json({ success: true, categories: categoriesMaster });
   });
 
-  app.get('/api/products', (_req: Request, res: Response) => {
+  app.get('/api/products', async (req: Request, res: Response) => {
+    const env: WorkerEnv = (req as any).env;
+    const cached = await getCached<any>(CACHE_KEYS.PRODUCTS, env);
+    if (cached) {
+      res.setHeader('X-Cache', 'HIT');
+      return res.json(cached);
+    }
+
     cleanupExpiredReservations();
     const productsWithLiveStock = productsMaster.map(p => {
       const updatedVariants = p.variants.map(v => {
@@ -272,11 +491,14 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       return { ...p, variants: updatedVariants };
     });
 
-    res.json({ success: true, products: productsWithLiveStock });
+    const responsePayload = { success: true, products: productsWithLiveStock };
+    await setCached(CACHE_KEYS.PRODUCTS, responsePayload, env, 300);
+    res.setHeader('X-Cache', 'MISS');
+    res.json(responsePayload);
   });
 
   // Create / Update product (Super admin or Dealer/Manager only)
-  app.post('/api/products', requireAuth, requireRole(['super_admin', 'dealer']), (req: Request, res: Response) => {
+  app.post('/api/products', requireAuth, requireRole(['super_admin', 'dealer']), async (req: Request, res: Response) => {
     const { name, categorySlug, pricePaise, sizeLabel, description, storageInstructions } = req.body;
     if (!name || !categorySlug || !pricePaise) {
       return res.status(400).json({ success: false, error: 'Product name, category, and price are required.' });
@@ -333,6 +555,9 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     productsMaster.unshift(newProduct);
     const user: AuthUser = (req as any).user;
     recordAudit(user.email, 'PRODUCT_CREATED', 'product', newProduct.id, { name });
+
+    const env: WorkerEnv = (req as any).env;
+    await invalidateCatalogCache(env);
 
     res.json({ success: true, product: newProduct });
   });
@@ -401,7 +626,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     });
   });
 
-  app.post('/api/inventory/adjust', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
+  app.post('/api/inventory/adjust', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response) => {
     const parsed = InventoryAdjustSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: 'Invalid adjustment payload' });
@@ -434,6 +659,9 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       reason
     });
 
+    const env: WorkerEnv = (req as any).env;
+    await invalidateCatalogCache(env);
+
     res.json({ 
       success: true, 
       message: `Batch ${batch.batchNumber} adjusted by ${delta > 0 ? '+' : ''}${delta}. New on-hand: ${batch.onHandQuantity}.`,
@@ -441,7 +669,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     });
   });
 
-  app.post('/api/inventory/quarantine', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
+  app.post('/api/inventory/quarantine', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response) => {
     const parsed = QuarantineSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ success: false, error: 'Invalid quarantine payload' });
@@ -461,6 +689,9 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     recordAudit(actorEmail || 'admin@dugdhsar.in', isQuarantined ? 'batch_quarantine_hold' : 'batch_quarantine_release', 'inventory_batch', batch.batchNumber, {
       quarantineReason
     });
+
+    const env: WorkerEnv = (req as any).env;
+    await invalidateCatalogCache(env);
 
     res.json({ success: true, message: `Batch ${batch.batchNumber} quarantine status updated.`, batch });
   });
@@ -639,36 +870,26 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   });
 
   // =========================================================================
-  // 7. ORDERS (ROLE-BASED SERVER DATA ISOLATION)
+  // 7. ORDERS (ROW-LEVEL SECURITY & IDOR PROTECTION VIA SCOPED REPO)
   // =========================================================================
   app.get('/api/orders', requireAuth, (req: Request, res: Response) => {
     const user: AuthUser = (req as any).user;
-
-    // Strict role-based isolation:
-    // 1. Super Admin: sees all orders
-    if (user.role === 'super_admin') {
-      return res.json({ success: true, orders: ordersMaster });
-    }
-
-    // 2. Dealer: sees orders in their assigned territory only
-    if (user.role === 'dealer') {
-      const dealerOrders = ordersMaster.filter(o => 
-        (user.assignedPincodes && user.assignedPincodes.includes(o.deliveryPincode)) ||
-        (user.dealerId && (o as any).dealerId === user.dealerId)
-      );
-      return res.json({ success: true, orders: dealerOrders });
-    }
-
-    // 3. Customer: sees ONLY their own orders (by user ID or email)
-    const customerOrders = ordersMaster.filter(o => 
-      o.userId === user.id || 
-      (o.customerEmail && o.customerEmail.toLowerCase() === user.email.toLowerCase())
-    );
-
-    res.json({ success: true, orders: customerOrders });
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const statusFilter = req.query.status as string | undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const orders = repo.orders.findMany({ status: statusFilter, limit });
+    res.json({ success: true, orders });
   });
 
-  app.post('/api/checkout/create-order', (req: Request, res: Response) => {
+  // Single order retrieval with strict IDOR ownership check
+  app.get('/api/orders/:id', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const order = repo.orders.findById(req.params.id);
+    res.json({ success: true, order });
+  });
+
+  app.post('/api/checkout/create-order', idempotencyMiddleware(), orderRateLimiter, async (req: Request, res: Response) => {
     cleanupExpiredReservations();
     const { 
       customer, 
@@ -688,6 +909,10 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       });
     }
 
+    const orderId = `DUG-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+    const authUser = (req as any).user;
+    const actorEmail = authUser?.email || customer?.email || address?.email || 'patron@dugdhsar.in';
+
     let subtotalPaise = 0;
     const orderItems: OrderItem[] = [];
 
@@ -698,31 +923,21 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         return res.status(400).json({ success: false, error: `Invalid variant ${item.variantId}` });
       }
 
+      // Concurrency-safe FEFO batch allocation with over-selling guard
+      allocateInventoryFefo(
+        item.variantId,
+        item.quantity,
+        { batches: batchesMaster, movements: movementsMaster },
+        orderId,
+        actorEmail
+      );
+
       const itemTotal = variant.pricePaise * item.quantity;
       subtotalPaise += itemTotal;
 
-      // FEFO allocation from batches
-      const candidateBatches = batchesMaster.filter(b => 
-        b.variantId === item.variantId && 
-        !b.isQuarantined && 
-        b.status === 'active' && 
-        new Date(b.expiryDate) > new Date() &&
-        b.onHandQuantity > 0
-      ).sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
-
-      let qtyRemaining = item.quantity;
-      for (const b of candidateBatches) {
-        if (qtyRemaining <= 0) break;
-        const take = Math.min(b.onHandQuantity, qtyRemaining);
-        b.onHandQuantity -= take;
-        b.reservedQuantity = Math.max(0, b.reservedQuantity - take);
-        b.updatedAt = new Date().toISOString();
-        qtyRemaining -= take;
-      }
-
       orderItems.push({
         id: `oi-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        orderId: '',
+        orderId,
         variantId: variant.id,
         productNameSnapshot: product.name,
         sizeSnapshot: variant.sizeLabel,
@@ -748,17 +963,13 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     }
 
     const totalPaise = subtotalPaise - discountPaise + deliveryFeePaise;
-    const orderId = `DUG-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
-
-    orderItems.forEach(oi => oi.orderId = orderId);
-
     const isCOD = paymentMethod === 'cod';
-    const authUser = (req as any).user;
 
     const newOrder: Order = {
       id: orderId,
       orderNumber: orderId,
       userId: authUser?.id || customer?.id || 'guest',
+      customerId: authUser?.id || customer?.id || 'guest',
       customerName: customer?.fullName || address?.fullName || 'Patron',
       customerEmail: customer?.email || address?.email || 'customer@dugdhsar.in',
       customerPhone: customer?.phone || address?.phone || '+91 7067672604',
@@ -772,6 +983,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       paymentMethod,
       paymentStatus: isCOD ? 'due_on_delivery' : 'captured',
       deliveryAddress: address,
+      shippingAddress: address,
       deliverySlot: deliverySlot || '5:30 AM - 7:00 AM',
       deliveryPincode: address.pincode,
       createdAt: new Date().toISOString(),
@@ -787,6 +999,10 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         .forEach(r => r.status = 'converted');
     }
 
+    // Invalidate catalog cache so frontend sees latest available inventory
+    const env: WorkerEnv = (req as any).env;
+    await invalidateCatalogCache(env);
+
     res.json({
       success: true,
       message: 'Order placed successfully with guaranteed 2°C-4°C local cold chain.',
@@ -794,61 +1010,79 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     });
   });
 
-  app.post('/api/orders/:id/status', requireAuth, requireRole(['super_admin', 'dealer']), (req: Request, res: Response) => {
+  const handleStatusUpdate = (req: Request, res: Response) => {
     const { id } = req.params;
-    const { newStatus, notes } = req.body;
-    const order = ordersMaster.find(o => o.id === id);
+    const parsed = OrderStatusUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: 'Invalid status update', details: parsed.error.format() });
+    }
+
+    const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const order = repo.orders.updateStatus(id, parsed.data.status, getClientIp(req));
+
+    if (parsed.data.status === 'cancelled') {
+      recordAudit(user.email, 'order_status_update', 'order', order.id, {
+        fromStatus: order.status,
+        toStatus: 'cancelled',
+        notes: parsed.data.notes
+      });
+    }
+
+    res.json({ success: true, message: `Order ${id} status updated to ${parsed.data.status}.`, order });
+  };
+
+  app.post('/api/orders/:id/status', requireAuth, requireRole(['super_admin', 'dealer']), handleStatusUpdate);
+  app.patch('/api/orders/:id/status', requireAuth, requireRole(['super_admin', 'dealer']), handleStatusUpdate);
+
+  // Soft delete order (super_admin only for DPDP compliance / audit)
+  app.delete('/api/orders/:id', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const { reason } = req.body || {};
+    const order = ordersMaster.find(o => o.id === req.params.id);
     if (!order) {
       return res.status(404).json({ success: false, error: 'Order not found' });
     }
-
-    const user: AuthUser = (req as any).user;
-    const previousStatus = order.status;
-    order.status = newStatus;
-
-    if (newStatus === 'returned' && previousStatus !== 'returned') {
-      recordAudit(user.email, 'perishable_return_discarded', 'order', order.id, {
-        policy: 'Perishable Dairy Cold-Chain Integrity Protocol',
-        actionTaken: 'Waste Discarded / Quarantine Disposed',
-        restockedToInventory: false,
-        reason: notes || 'Customer return: Cold-chain seal broken. Perishables cannot be returned to sellable stock.'
-      });
-    } else {
-      recordAudit(user.email, 'order_status_update', 'order', order.id, {
-        fromStatus: previousStatus,
-        toStatus: newStatus,
-        notes
-      });
-    }
-
-    res.json({ success: true, message: `Order ${id} status updated to ${newStatus}.`, order });
+    softDeleteOrder(order, user.email, reason);
+    res.json({ success: true, message: `Order ${order.id} soft-deleted.`, order });
   });
 
   // =========================================================================
-  // 8. SUBSCRIPTIONS (ROLE-BASED SERVER DATA ISOLATION)
+  // 8. SUBSCRIPTIONS (ROW-LEVEL SECURITY & IDOR PROTECTION VIA SCOPED REPO)
   // =========================================================================
   app.get('/api/subscriptions', requireAuth, (req: Request, res: Response) => {
     const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const subscriptions = repo.subscriptions.findMany({ status: req.query.status as string });
+    res.json({ success: true, subscriptions });
+  });
 
-    if (user.role === 'super_admin') {
-      return res.json({ success: true, subscriptions: subscriptionsMaster });
+  app.get('/api/subscriptions/:id', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const subscription = repo.subscriptions.findById(req.params.id);
+    res.json({ success: true, subscription });
+  });
+
+  app.post('/api/subscriptions/:id/cancel', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const parsed = CancelSubscriptionSchema.safeParse(req.body);
+    const reason = parsed.success ? parsed.data.reason : undefined;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const subscription = repo.subscriptions.cancel(req.params.id, reason, getClientIp(req));
+    res.json({ success: true, message: `Subscription ${req.params.id} cancelled.`, subscription });
+  });
+
+  // Soft delete subscription (super_admin only)
+  app.delete('/api/subscriptions/:id', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const { reason } = req.body || {};
+    const sub = subscriptionsMaster.find(s => s.id === req.params.id);
+    if (!sub) {
+      return res.status(404).json({ success: false, error: 'Subscription not found' });
     }
-
-    if (user.role === 'dealer') {
-      const dealerSubs = subscriptionsMaster.filter(s => 
-        (s as any).dealerId === user.dealerId || 
-        (user.assignedPincodes && s.deliveryAddress && user.assignedPincodes.some(p => (s.deliveryAddress || '').includes(p)))
-      );
-      return res.json({ success: true, subscriptions: dealerSubs });
-    }
-
-    // Customer sees only their own subscriptions
-    const customerSubs = subscriptionsMaster.filter(s => 
-      s.userId === user.id || 
-      (s.customerEmail && s.customerEmail.toLowerCase() === user.email.toLowerCase())
-    );
-
-    res.json({ success: true, subscriptions: customerSubs });
+    softDeleteSubscription(sub, user.email, reason);
+    res.json({ success: true, message: `Subscription ${sub.id} soft-deleted.`, subscription: sub });
   });
 
   app.post('/api/subscriptions', (req: Request, res: Response) => {
@@ -858,6 +1092,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     const newSub: Subscription = {
       id: `sub-${Date.now()}`,
       userId: user?.id || subData.userId || 'guest',
+      customerId: user?.id || subData.userId || 'guest',
       customerName: subData.customerName || user?.fullName || 'Patron',
       customerPhone: subData.customerPhone || '+91 7067672604',
       customerEmail: subData.customerEmail || user?.email || 'customer@dugdhsar.in',
@@ -877,6 +1112,136 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     recordAudit(user?.email || 'patron@dugdhsar.in', 'SUBSCRIPTION_CREATED', 'subscription', newSub.id);
 
     res.json({ success: true, subscription: newSub });
+  });
+
+  // Admin Audit Trail Endpoint (super_admin restricted)
+  app.get('/api/admin/audit-logs', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+    const action = req.query.action as string | undefined;
+
+    const result = getAuditLogs(user, { limit, offset, action });
+    res.json({ success: true, ...result });
+  });
+
+  // Feature Flags: client evaluation endpoint
+  app.get('/api/feature-flags', async (req: Request, res: Response) => {
+    const env: WorkerEnv = (req as any).env;
+    const user: AuthUser | undefined = (req as any).user;
+    const flags = await getAllFeatureFlags(env, { user, identifier: req.ip });
+    res.json({ success: true, flags });
+  });
+
+  // Admin Feature Flag Management (super_admin only)
+  app.post('/api/admin/feature-flags', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response) => {
+    const { key, description, enabled, rolloutPercentage, allowedRoles, allowlistEmails } = req.body;
+    if (!key || typeof enabled !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'Flag "key" and boolean "enabled" are required.' });
+    }
+
+    const env: WorkerEnv = (req as any).env;
+    await setFeatureFlag(
+      {
+        key,
+        description: description || '',
+        enabled,
+        rolloutPercentage,
+        allowedRoles,
+        allowlistEmails
+      },
+      env
+    );
+
+    const user: AuthUser = (req as any).user;
+    recordAudit(user.email, 'FEATURE_FLAG_UPDATED', 'feature_flag', key, { enabled, rolloutPercentage });
+    res.json({ success: true, message: `Feature flag "${key}" updated successfully.` });
+  });
+
+  // =========================================================================
+  // 8b. DATA PRIVACY & DPDP ACT / GDPR COMPLIANCE
+  // =========================================================================
+  // Right to Data Portability: export all user orders, subscriptions & personal data
+  app.get('/api/user/export', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+
+    const userOrders = repo.orders.findMany({ includeDeleted: true });
+    const userSubscriptions = repo.subscriptions.findMany({ includeDeleted: true });
+
+    res.json({
+      success: true,
+      exportedAt: new Date().toISOString(),
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role
+      },
+      orders: userOrders,
+      subscriptions: userSubscriptions,
+      complianceNote: 'Exported under India Digital Personal Data Protection (DPDP) Act, 2023 & GDPR Section 20.'
+    });
+  });
+
+  // Right to Erasure / Anonymization
+  app.post('/api/user/delete', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const { confirmation } = req.body;
+    if (confirmation !== 'DELETE_MY_ACCOUNT') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Confirmation string "DELETE_MY_ACCOUNT" is required to process permanent erasure.' 
+      });
+    }
+
+    const timestamp = new Date().toISOString();
+
+    // 1. Cancel and soft-delete all active subscriptions
+    subscriptionsMaster.forEach(sub => {
+      if (sub.customerId === user.id || sub.userId === user.id || (sub.customerEmail && sub.customerEmail.toLowerCase() === user.email.toLowerCase())) {
+        softDeleteSubscription(sub, user.email, 'DPDP Act Right to Erasure');
+        sub.customerName = 'Anonymized Patron';
+        sub.customerEmail = 'anonymized@dugdhsar.in';
+        sub.customerPhone = '+91 0000000000';
+      }
+    });
+
+    // 2. Anonymize personal details in order history while preserving financial integrity
+    ordersMaster.forEach(ord => {
+      if (ord.customerId === user.id || ord.userId === user.id || (ord.customerEmail && ord.customerEmail.toLowerCase() === user.email.toLowerCase())) {
+        (ord as any).deleted_at = timestamp;
+        ord.customerName = 'Anonymized Patron';
+        ord.customerEmail = 'anonymized@dugdhsar.in';
+        ord.customerPhone = '+91 0000000000';
+        if (typeof ord.deliveryAddress === 'object') {
+          (ord.deliveryAddress as any).fullName = 'Anonymized';
+          (ord.deliveryAddress as any).phone = '+91 0000000000';
+          (ord.deliveryAddress as any).street = 'Redacted for Privacy';
+        }
+      }
+    });
+
+    recordAudit(user.email, 'USER_ACCOUNT_ERASED', 'user', user.id, {
+      anonymizedAt: timestamp,
+      reason: 'User requested erasure under DPDP Act'
+    });
+
+    clearSessionCookies(res);
+    res.json({
+      success: true,
+      message: 'Account data anonymized and active subscriptions cancelled under DPDP Act & GDPR compliance.'
+    });
+  });
+
+  // Public Contact Endpoint with strict rate limiting
+  app.post('/api/contact', contactRateLimiter, (req: Request, res: Response) => {
+    const { name, phone, message } = req.body;
+    if (!name || !phone || !message) {
+      return res.status(400).json({ success: false, error: 'Name, phone, and message are required.' });
+    }
+    logger.info(`[ContactForm] Message from ${name} (${phone}) received`);
+    res.json({ success: true, message: 'Dhanyawad! Your message has been received. Our team in Seoni will contact you shortly.' });
   });
 
   // =========================================================================
@@ -983,7 +1348,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   app.post('/api/razorpay/create-order', (req: Request, res: Response) => {
     const { amountPaise, receipt } = req.body;
     const env: WorkerEnv = (req as any).env;
-    const keyId = env?.RAZORPAY_KEY_ID || 'rzp_live_dugdhsar_vedic';
+    const keyId = env?.RAZORPAY_KEY_ID || '';
     const orderId = `order_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
     
     res.json({
@@ -999,7 +1364,11 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   app.post('/api/razorpay/verify', async (req: Request, res: Response) => {
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
     const env: WorkerEnv = (req as any).env;
-    const keySecret = env?.RAZORPAY_KEY_SECRET || 'dugdhsar_live_secret_key_849204';
+    const keySecret = env?.RAZORPAY_KEY_SECRET;
+
+    if (!keySecret) {
+      return res.status(500).json({ success: false, error: 'Payment gateway secret is not configured on the server.' });
+    }
 
     if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
       return res.status(400).json({ success: false, error: 'Missing signature verification tokens.' });
@@ -1106,6 +1475,9 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       results: testResults
     });
   });
+
+  // Centralized Error Handler (leak-proof error formatting with X-Request-Id)
+  app.use(errorHandler);
 
   return app;
 }

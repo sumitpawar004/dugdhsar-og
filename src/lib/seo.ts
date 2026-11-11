@@ -1,10 +1,6 @@
-/**
- * SEO & Schema.org JSON-LD Generator
- * Produces valid, Google Rich Results compliant, safe-escaped structured data.
- */
-
+import React, { useEffect } from 'react';
 import { siteConfig } from '../config/site';
-import { RouteMeta, staticContent } from '../content';
+import { RouteMeta, PUBLIC_ROUTES_META, staticContent } from '../content';
 
 /**
  * Escapes unsafe HTML characters to prevent XSS in JSON-LD injection
@@ -14,6 +10,186 @@ export function safeJsonLdString(obj: unknown): string {
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026');
+}
+
+export interface PageSEOProps {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  ogType?: 'website' | 'article' | 'product';
+  ogImage?: string;
+  ogImageAlt?: string;
+  twitterCard?: 'summary' | 'summary_large_image';
+  noindex?: boolean;
+  jsonLd?: object | object[];
+  keywords?: string[];
+}
+
+/**
+ * Helper to update or create a <meta> element in document.head
+ */
+function updateMetaTag(attributeName: 'name' | 'property', attributeValue: string, content?: string): void {
+  if (typeof document === 'undefined') return;
+
+  const selector = `meta[${attributeName}="${attributeValue}"]`;
+  let element = document.head.querySelector<HTMLMetaElement>(selector);
+
+  if (!content) {
+    if (element) {
+      element.remove();
+    }
+    return;
+  }
+
+  if (!element) {
+    element = document.createElement('meta');
+    element.setAttribute(attributeName, attributeValue);
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute('content', content);
+}
+
+/**
+ * Helper to update or create a <link> element in document.head
+ */
+function updateLinkTag(rel: string, href?: string): void {
+  if (typeof document === 'undefined') return;
+
+  const selector = `link[rel="${rel}"]`;
+  let element = document.head.querySelector<HTMLLinkElement>(selector);
+
+  if (!href) {
+    if (element) {
+      element.remove();
+    }
+    return;
+  }
+
+  if (!element) {
+    element = document.createElement('link');
+    element.setAttribute('rel', rel);
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute('href', href);
+}
+
+/**
+ * Helper to update or create the JSON-LD script tag in document.head
+ */
+function updateJsonLd(data?: object | object[]): void {
+  if (typeof document === 'undefined') return;
+
+  const scriptId = 'dugdhsar-page-schema';
+  let script = document.getElementById(scriptId) as HTMLScriptElement | null;
+
+  if (!data) {
+    if (script) script.remove();
+    return;
+  }
+
+  if (!script) {
+    script = document.createElement('script');
+    script.id = scriptId;
+    script.type = 'application/ld+json';
+    document.head.appendChild(script);
+  }
+
+  script.textContent = safeJsonLdString(data);
+}
+
+/**
+ * React Hook for dynamic page SEO management.
+ * Dynamically updates document.title, description, canonical link,
+ * robots, OpenGraph and Twitter tags on route navigation in React SPA.
+ */
+export function usePageSEO(options?: PageSEOProps | string): void {
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+    // Normalizing options
+    let resolvedOptions: PageSEOProps = {};
+    if (typeof options === 'string') {
+      resolvedOptions = { title: options };
+    } else if (options) {
+      resolvedOptions = options;
+    }
+
+    const currentPath = window.location.pathname.replace(/\/$/, '') || '/';
+    const matchedRouteMeta = PUBLIC_ROUTES_META.find((r) => r.path === currentPath);
+
+    // Title resolution
+    const rawTitle = resolvedOptions.title || matchedRouteMeta?.title || siteConfig.name;
+    const finalTitle = rawTitle.includes(siteConfig.name) 
+      ? rawTitle 
+      : `${rawTitle} — ${siteConfig.name}`;
+    document.title = finalTitle;
+
+    // Description
+    const description = resolvedOptions.description || matchedRouteMeta?.description || siteConfig.description;
+    updateMetaTag('name', 'description', description);
+
+    // Keywords
+    if (resolvedOptions.keywords && resolvedOptions.keywords.length > 0) {
+      updateMetaTag('name', 'keywords', resolvedOptions.keywords.join(', '));
+    }
+
+    // Canonical URL
+    const canonical = resolvedOptions.canonical || matchedRouteMeta?.canonical || `${siteConfig.url}${currentPath === '/' ? '' : currentPath}`;
+    updateLinkTag('canonical', canonical);
+
+    // Robots meta tag
+    if (resolvedOptions.noindex) {
+      updateMetaTag('name', 'robots', 'noindex, nofollow');
+    } else {
+      updateMetaTag('name', 'robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
+    }
+
+    // OpenGraph meta tags
+    const ogType = resolvedOptions.ogType || matchedRouteMeta?.ogType || 'website';
+    const ogImage = resolvedOptions.ogImage || matchedRouteMeta?.ogImage || siteConfig.ogImage;
+    const ogImageAlt = resolvedOptions.ogImageAlt || `${siteConfig.name} Pure Gir Cow Dairy`;
+
+    updateMetaTag('property', 'og:title', finalTitle);
+    updateMetaTag('property', 'og:description', description);
+    updateMetaTag('property', 'og:url', canonical);
+    updateMetaTag('property', 'og:type', ogType);
+    updateMetaTag('property', 'og:site_name', siteConfig.name);
+    updateMetaTag('property', 'og:locale', 'en_IN');
+    updateMetaTag('property', 'og:image', ogImage);
+    updateMetaTag('property', 'og:image:alt', ogImageAlt);
+
+    // Twitter Card meta tags
+    const twitterCard = resolvedOptions.twitterCard || 'summary_large_image';
+    updateMetaTag('name', 'twitter:card', twitterCard);
+    updateMetaTag('name', 'twitter:title', finalTitle);
+    updateMetaTag('name', 'twitter:description', description);
+    updateMetaTag('name', 'twitter:image', ogImage);
+    updateMetaTag('name', 'twitter:site', '@dugdhsar.in');
+    updateMetaTag('name', 'twitter:creator', '@dugdhsar.in');
+
+    // Geo / Local SEO
+    updateMetaTag('name', 'geo.region', 'IN-MP');
+    updateMetaTag('name', 'geo.placename', 'Seoni, Madhya Pradesh, India');
+    updateMetaTag('name', 'geo.position', `${siteConfig.location.latitude};${siteConfig.location.longitude}`);
+    updateMetaTag('name', 'ICBM', `${siteConfig.location.latitude}, ${siteConfig.location.longitude}`);
+
+    // Structured Data (JSON-LD)
+    if (resolvedOptions.jsonLd) {
+      updateJsonLd(resolvedOptions.jsonLd);
+    } else if (matchedRouteMeta) {
+      const generatedGraph = generateSchemaGraph(matchedRouteMeta);
+      updateJsonLd(generatedGraph);
+    }
+  }, [
+    options,
+    typeof options === 'object' ? options?.title : options,
+    typeof options === 'object' ? options?.description : undefined,
+    typeof options === 'object' ? options?.canonical : undefined,
+    typeof options === 'object' ? options?.ogImage : undefined,
+    typeof options === 'object' ? options?.noindex : undefined,
+  ]);
 }
 
 /**

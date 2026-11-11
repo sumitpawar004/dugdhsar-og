@@ -4,9 +4,29 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import { createAppRouter } from "./app";
 import { DUGDHSAR_DEFAULT_FEED } from "./instagram";
+import { fetchWithCircuitBreaker } from "./lib/fetchWithCircuitBreaker";
+import { requestIdMiddleware } from "./middleware/requestId";
+import { errorHandler } from "./middleware/errorHandler";
+import { logger } from "./logger";
+import { validateEnv } from "./env";
+import { healthRouter } from "./routes/health";
 
 const app = express();
 app.use(cors());
+
+// Correlation ID on every incoming request
+app.use(requestIdMiddleware);
+
+// Structured HTTP completion logging with PII redaction (API routes only)
+app.use((req, res, next) => {
+  const isApi = req.url.startsWith('/api') || req.originalUrl?.startsWith('/api');
+  if (isApi) {
+    res.on("finish", () => {
+      logger.logHttp(req, res);
+    });
+  }
+  next();
+});
 
 // Capture raw body for webhook HMAC SHA-256 signature verification
 app.use(express.json({
@@ -14,6 +34,13 @@ app.use(express.json({
     req.rawBody = buf ? buf.toString() : '';
   }
 }));
+
+// Validate environment on startup/first load
+try {
+  validateEnv(env);
+} catch (envErr: any) {
+  logger.error("[Worker Startup] Environment configuration warning", { error: envErr.message });
+}
 
 const IG = "https://graph.instagram.com";
 const FRESH_MS = 2 * 60 * 1000;
@@ -31,8 +58,14 @@ async function fetchFeed() {
   }
 
   const [p, m] = await Promise.all([
-    fetch(`${IG}/me?fields=username,followers_count,follows_count,media_count,profile_picture_url&access_token=${encodeURIComponent(token)}`),
-    fetch(`${IG}/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=12&access_token=${encodeURIComponent(token)}`),
+    fetchWithCircuitBreaker(
+      `${IG}/me?fields=username,followers_count,follows_count,media_count,profile_picture_url&access_token=${encodeURIComponent(token)}`,
+      { timeoutMs: 8000 }
+    ),
+    fetchWithCircuitBreaker(
+      `${IG}/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=12&access_token=${encodeURIComponent(token)}`,
+      { timeoutMs: 8000 }
+    ),
   ]);
 
   if (!p.ok || !m.ok) {
@@ -44,8 +77,12 @@ async function fetchFeed() {
   return { profile, media, updatedAt: Date.now() };
 }
 
-// 1. Instagram Feed Endpoint with 2-Minute KV Caching
-app.get("/api/instagram/feed", async (_req: Request, res: Response) => {
+// 1. Health & Readiness probes (/api/health, /api/ready, /api/v1/health, /api/v1/ready)
+app.use("/api", healthRouter);
+app.use("/api/v1", healthRouter);
+
+// 2. Instagram Feed Endpoint with 2-Minute KV Caching (supports both /api and /api/v1)
+const handleInstagramFeed = async (_req: Request, res: Response) => {
   let cached: any = null;
   let stale: string | null = null;
 
@@ -55,7 +92,7 @@ app.get("/api/instagram/feed", async (_req: Request, res: Response) => {
       stale = await env.CACHE.get("ig_stale");
     }
   } catch (err) {
-    console.warn("[Worker] KV read error:", err);
+    logger.warn("[Worker] KV read error", { error: err });
   }
 
   if (cached && !stale && Date.now() - (cached.updatedAt || 0) < FRESH_MS) {
@@ -71,13 +108,15 @@ app.get("/api/instagram/feed", async (_req: Request, res: Response) => {
     res.json(fresh);
   } catch {
     if (cached) return res.json(cached); // Purana data dikha do
-    // Verified fallback if Instagram is unreachable
     res.json(DUGDHSAR_DEFAULT_FEED);
   }
-});
+};
 
-// 2. Meta Webhook Verification (GET)
-app.get("/api/instagram/webhook", (req: Request, res: Response) => {
+app.get("/api/instagram/feed", handleInstagramFeed);
+app.get("/api/v1/instagram/feed", handleInstagramFeed);
+
+// 3. Meta Webhook Verification (GET)
+const handleWebhookGet = (req: Request, res: Response) => {
   if (
     req.query["hub.mode"] === "subscribe" &&
     req.query["hub.verify_token"] === (env.IG_VERIFY_TOKEN || "dugdhsar_ig_verify_token")
@@ -85,7 +124,10 @@ app.get("/api/instagram/webhook", (req: Request, res: Response) => {
     return res.status(200).send(String(req.query["hub.challenge"]));
   }
   res.sendStatus(403);
-});
+};
+
+app.get("/api/instagram/webhook", handleWebhookGet);
+app.get("/api/v1/instagram/webhook", handleWebhookGet);
 
 // Helper: Verify X-Hub-Signature-256 with WebCrypto HMAC SHA-256
 async function verifyHubSignature(signatureHeader: string | undefined, rawBody: string, appSecret: string): Promise<boolean> {
@@ -114,8 +156,8 @@ async function verifyHubSignature(signatureHeader: string | undefined, rawBody: 
   }
 }
 
-// 3. Meta Webhook Receiver (POST) - Verifies signature and marks feed stale
-app.post("/api/instagram/webhook", async (req: any, res: Response) => {
+// 4. Meta Webhook Receiver (POST) - Verifies signature and marks feed stale
+const handleWebhookPost = async (req: any, res: Response) => {
   const signature = req.headers["x-hub-signature-256"] as string | undefined;
   const rawBody = req.rawBody || JSON.stringify(req.body);
   const appSecret = env.IG_APP_SECRET;
@@ -133,13 +175,20 @@ app.post("/api/instagram/webhook", async (req: any, res: Response) => {
   }
 
   res.sendStatus(200);
-});
+};
 
-// 4. Mount all existing routes (auth, orders, subscriptions, sheets, products, inventory)
-app.use(createAppRouter(env));
+app.post("/api/instagram/webhook", handleWebhookPost);
+app.post("/api/v1/instagram/webhook", handleWebhookPost);
+
+// 5. Mount all existing routes (auth, orders, subscriptions, sheets, products, inventory)
+const appRouter = createAppRouter(env);
+app.use(appRouter);
+
+// 6. Centralized Error Handler (leak-proof, formatted JSON responses)
+app.use(errorHandler);
 
 // Listen on port 3000 for local compatibility and node bridge
-const server = app.listen(3000);
+app.listen(3000);
 
 const handler = httpServerHandler({ port: 3000 });
 
@@ -151,18 +200,19 @@ export default {
     try {
       const token = await getToken();
       if (!token) return;
-      const r = await fetch(
-        `${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token)}`
+      const r = await fetchWithCircuitBreaker(
+        `${IG}/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token)}`,
+        { timeoutMs: 8000, retrySafe: true }
       );
       if (r.ok) {
         const j: any = await r.json();
         if (j.access_token && env.CACHE) {
           await env.CACHE.put("ig_token", j.access_token);
-          console.log("[Instagram Cron] Token successfully refreshed");
+          logger.info("[Instagram Cron] Token successfully refreshed");
         }
       }
     } catch (err: any) {
-      console.warn("[Instagram Cron] Scheduled refresh failed:", err.message);
+      logger.warn("[Instagram Cron] Scheduled refresh failed", { error: err.message });
     }
   },
 };

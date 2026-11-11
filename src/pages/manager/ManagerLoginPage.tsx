@@ -22,7 +22,7 @@ export const ManagerLoginPage: React.FC = () => {
   const { navigate } = useRouter();
 
   const [email, setEmail] = useState('manager@dugdhsar.in');
-  const [password, setPassword] = useState('••••••••');
+  const [password, setPassword] = useState('');
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
 

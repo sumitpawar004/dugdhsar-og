@@ -30,9 +30,12 @@ export interface SiteConfig {
     country: string;
     latitude: number;
     longitude: number;
+    coordinatesDms?: string;
     plusCode: string;
     fullAddress: string;
     googleMapsUrl: string;
+    googleMapsDirectionsUrl?: string;
+    googleMapsEmbedUrl?: string;
   };
   business: {
     openingHoursRaw: string;
@@ -89,11 +92,14 @@ export const siteConfig: SiteConfig = {
     stateCode: 'IN-MP',
     postalCode: '480661',
     country: 'IN',
-    latitude: 22.0869,
-    longitude: 79.5435,
+    latitude: 22.085917,
+    longitude: 79.55775,
+    coordinatesDms: '22°05\'09.3"N 79°33\'27.9"E',
     plusCode: '3HP5+948 Seoni, Madhya Pradesh',
-    fullAddress: '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
-    googleMapsUrl: 'https://maps.google.com/?q=22.0869,79.5435',
+    fullAddress: 'DUGDHSAR Dairy, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
+    googleMapsUrl: 'https://maps.google.com/?q=22.085917,79.55775',
+    googleMapsDirectionsUrl: 'https://www.google.com/maps/dir/?api=1&destination=22.085917,79.55775',
+    googleMapsEmbedUrl: 'https://maps.google.com/maps?q=22.085917,79.55775&hl=en&z=17&output=embed',
   },
   business: {
     openingHoursRaw: 'Mo-Su 05:00-11:00, 17:00-22:00',

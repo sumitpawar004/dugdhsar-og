@@ -25,8 +25,8 @@ export const LoginPage: React.FC = () => {
   const { switchUserPersona, updateProfile, loginUser } = useStore();
   const { navigate } = useRouter();
 
-  const [email, setEmail] = useState('customer@dugdhsar.in');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState<'password' | 'otp'>('password');
   
   const [isLoading, setIsLoading] = useState(false);
@@ -82,8 +82,6 @@ export const LoginPage: React.FC = () => {
   };
 
   const handleQuickCustomerDemo = () => {
-    setEmail('customer@dugdhsar.in');
-    setPassword('password123');
     loginUser({
       id: 'usr-customer-1',
       email: 'customer@dugdhsar.in',

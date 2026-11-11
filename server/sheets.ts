@@ -1,6 +1,8 @@
 import * as jose from 'jose';
 import { WorkerEnv } from './types';
-import { kvGet, kvPut } from './kv';
+import { fetchWithCircuitBreaker } from './lib/fetchWithCircuitBreaker';
+import { normalizeUtf8String } from './lib/timezone';
+import { logger } from './logger';
 
 // Cached token in-memory to prevent repeated token minting
 let cachedAccessToken: { token: string; expiresAt: number } | null = null;
@@ -39,18 +41,20 @@ export async function getGoogleSheetsAccessToken(env?: WorkerEnv): Promise<strin
       .setExpirationTime(now + 3600)
       .sign(privateKey);
 
-    const res = await fetch('https://oauth2.googleapis.com/token', {
+    const res = await fetchWithCircuitBreaker('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
         assertion: jwt
-      })
+      }),
+      timeoutMs: 8000,
+      retrySafe: true // Token minting is safe to retry on 5xx
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.warn('[Google Sheets] OAuth token exchange failed:', errText);
+      logger.warn('[Google Sheets] OAuth token exchange failed', { status: res.status, error: errText });
       return null;
     }
 
@@ -64,7 +68,7 @@ export async function getGoogleSheetsAccessToken(env?: WorkerEnv): Promise<strin
     }
     return null;
   } catch (err: any) {
-    console.warn('[Google Sheets] Token generation error:', err.message);
+    logger.warn('[Google Sheets] Token generation error', { error: err.message });
     return null;
   }
 }
@@ -103,11 +107,11 @@ export const ORDER_SHEET_COLUMNS = [
   'Created At'
 ];
 
-// Sanitize cell values against formula injection (=, +, -, @, \t, \r)
+// Sanitize cell values against formula injection (=, +, -, @, \t, \r) and enforce UTF-8
 export function sanitizeSheetCell(val: any): string | number {
   if (typeof val === 'number') return val;
   if (val === null || val === undefined) return '';
-  const str = String(val);
+  const str = normalizeUtf8String(val);
   // Formula injection prevention: if first character is =, +, -, @, prefix with a single quote '
   if (/^[=+\-@\t\r]/.test(str)) {
     return `'${str}`;
@@ -121,7 +125,7 @@ export async function appendRowsToGoogleSheet(
   rawRows: (string | number)[][],
   columnsHeader?: string[]
 ): Promise<{ success: boolean; message: string; rowsSynced: number }> {
-  // Sanitize every cell to prevent formula injection
+  // Sanitize every cell to prevent formula injection and normalize UTF-8
   const rows = rawRows.map(row => row.map(sanitizeSheetCell));
   const spreadsheetId = env?.GOOGLE_SHEET_ID || (typeof process !== 'undefined' ? process.env.GOOGLE_SHEET_ID : undefined);
   const webhookUrl = env?.GOOGLE_SHEETS_WEBHOOK_URL || (typeof process !== 'undefined' ? process.env.GOOGLE_SHEETS_WEBHOOK_URL : undefined);
@@ -133,7 +137,7 @@ export async function appendRowsToGoogleSheet(
       const range = `${sheetName}!A:Z`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED`;
 
-      const response = await fetch(url, {
+      const response = await fetchWithCircuitBreaker(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -141,7 +145,8 @@ export async function appendRowsToGoogleSheet(
         },
         body: JSON.stringify({
           values: rows
-        })
+        }),
+        timeoutMs: 8000
       });
 
       if (response.ok) {
@@ -152,17 +157,17 @@ export async function appendRowsToGoogleSheet(
         };
       } else {
         const errorText = await response.text();
-        console.warn(`[Google Sheets API] Append failed:`, errorText);
+        logger.warn(`[Google Sheets API] Append failed:`, { status: response.status, error: errorText });
       }
     } catch (err: any) {
-      console.warn(`[Google Sheets API] Exception:`, err.message);
+      logger.warn(`[Google Sheets API] Exception:`, { error: err.message });
     }
   }
 
   // Strategy 2: Webhook fallback (Google Apps Script Webhook)
   if (webhookUrl && webhookUrl.startsWith('http')) {
     try {
-      await fetch(webhookUrl, {
+      await fetchWithCircuitBreaker(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -171,7 +176,8 @@ export async function appendRowsToGoogleSheet(
           timestamp: new Date().toISOString(),
           columns: columnsHeader || [],
           rows
-        })
+        }),
+        timeoutMs: 8000
       });
 
       return {
@@ -180,7 +186,7 @@ export async function appendRowsToGoogleSheet(
         rowsSynced: rows.length
       };
     } catch (err: any) {
-      console.warn(`[Google Sheets Webhook] Exception:`, err.message);
+      logger.warn(`[Google Sheets Webhook] Exception:`, { error: err.message });
     }
   }
 

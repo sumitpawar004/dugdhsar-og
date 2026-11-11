@@ -53,10 +53,23 @@ import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 
 // 404 Fallback
 import { NotFoundPage } from '../pages/NotFoundPage';
+import { usePageSEO } from '../lib/seo';
 
 export const AppRouter: React.FC = () => {
   const { path } = useRouter();
   const { currentUser, isAuthenticated } = useStore();
+
+  const isPrivate = 
+    path.startsWith('/admin') ||
+    path.startsWith('/dealer') ||
+    path.startsWith('/manager') ||
+    path.startsWith('/account') ||
+    path === '/checkout' ||
+    path === '/cart';
+
+  usePageSEO({
+    noindex: isPrivate,
+  });
 
   // Root Homepage
   if (path === '/' || path === '') {

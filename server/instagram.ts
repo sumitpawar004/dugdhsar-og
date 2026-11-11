@@ -1,5 +1,7 @@
 import { WorkerEnv, InstagramFeedResponse, InstagramMediaItem, InstagramProfile } from './types';
 import { kvGet, kvGetJSON, kvPut, kvPutJSON } from './kv';
+import { fetchWithCircuitBreaker } from './lib/fetchWithCircuitBreaker';
+import { logger } from './logger';
 
 const KV_KEY_IG_FEED_CACHE = 'ig_feed_cache';
 const KV_KEY_IG_TOKEN = 'ig_token';
@@ -123,8 +125,9 @@ export async function getInstagramFeed(env?: WorkerEnv): Promise<InstagramFeedRe
       };
 
       try {
-        const profileRes = await fetch(
-          `https://graph.instagram.com/me?fields=id,username,media_count,account_type&access_token=${encodeURIComponent(token)}`
+        const profileRes = await fetchWithCircuitBreaker(
+          `https://graph.instagram.com/me?fields=id,username,media_count,account_type&access_token=${encodeURIComponent(token)}`,
+          { timeoutMs: 8000 }
         );
         if (profileRes.ok) {
           const pData: any = await profileRes.json();
@@ -134,13 +137,13 @@ export async function getInstagramFeed(env?: WorkerEnv): Promise<InstagramFeedRe
             profile_picture_url: '/assets/aistudio/1000095715-clean_c92aa3a9.png'
           };
         }
-      } catch (err) {
-        console.warn('[Instagram Graph API] Profile query failed:', err);
+      } catch (err: any) {
+        logger.warn('[Instagram Graph API] Profile query failed', { error: err.message });
       }
 
       // 2. Fetch Media items
       const mediaUrl = `https://graph.instagram.com/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&access_token=${encodeURIComponent(token)}&limit=12`;
-      const mediaRes = await fetch(mediaUrl);
+      const mediaRes = await fetchWithCircuitBreaker(mediaUrl, { timeoutMs: 8000 });
 
       if (mediaRes.ok) {
         const mediaData: any = await mediaRes.json();
@@ -171,7 +174,7 @@ export async function getInstagramFeed(env?: WorkerEnv): Promise<InstagramFeedRe
         }
       }
     } catch (err: any) {
-      console.warn('[Instagram Graph API] Live fetch error, falling back to cache:', err.message);
+      logger.warn('[Instagram Graph API] Live fetch error, falling back to cache', { error: err.message });
     }
   }
 
@@ -193,20 +196,20 @@ export async function refreshInstagramToken(env?: WorkerEnv): Promise<{ success:
 
   try {
     const refreshUrl = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(currentToken)}`;
-    const res = await fetch(refreshUrl);
+    const res = await fetchWithCircuitBreaker(refreshUrl, { timeoutMs: 8000, retrySafe: true });
     if (res.ok) {
       const data: any = await res.json();
       if (data.access_token) {
         await kvPut(env, KV_KEY_IG_TOKEN, data.access_token);
-        console.log('[Instagram Cron] Long-lived access token refreshed successfully');
+        logger.info('[Instagram Cron] Long-lived access token refreshed successfully');
         return { success: true, message: 'Token refreshed successfully' };
       }
     }
     const errText = await res.text();
-    console.warn('[Instagram Cron] Refresh call failed:', errText);
+    logger.warn('[Instagram Cron] Refresh call failed', { status: res.status, error: errText });
     return { success: false, message: `Refresh failed: ${errText}` };
   } catch (err: any) {
-    console.warn('[Instagram Cron] Exception:', err.message);
+    logger.warn('[Instagram Cron] Exception', { error: err.message });
     return { success: false, message: err.message };
   }
 }

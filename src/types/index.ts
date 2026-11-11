@@ -187,10 +187,12 @@ export interface Order {
   id: string;
   orderNumber: string;
   userId: string;
+  customerId?: string;
+  dealerId?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
-  status: 'pending' | 'confirmed' | 'processing' | 'dispatched' | 'delivered' | 'cancelled' | 'returned';
+  status: 'pending' | 'confirmed' | 'processing' | 'dispatched' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
   items: OrderItem[];
   subtotalPaise: number;
   taxPaise: number;
@@ -200,11 +202,13 @@ export interface Order {
   paymentMethod: 'upi' | 'card' | 'cod' | 'netbanking' | 'razorpay';
   paymentStatus: 'pending' | 'captured' | 'failed' | 'refunded' | 'due_on_delivery';
   deliveryAddress: Address;
+  shippingAddress?: Address | any;
   deliverySlot: '5:00 AM - 10:00 AM' | '6:00 PM - 10:00 PM' | '5:30 AM - 11:00 AM' | '5:00 PM - 7:00 PM' | string;
   deliveryPincode: string;
   trackingNumber?: string;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
   estimatedDelivery: string;
 }
 
@@ -492,17 +496,20 @@ export interface BatchPurityData {
 export interface Subscription {
   id: string;
   userId?: string;
+  customerId?: string;
+  dealerId?: string;
   customerEmail?: string;
   productName: string;
   variant: string;
   quantity: number;
-  frequency: 'daily' | 'alternate' | 'weekly' | 'weekdays';
+  frequency: 'daily' | 'alternate' | 'weekly' | 'weekdays' | string;
   deliverySlot?: string;
   customerName?: string;
   customerPhone?: string;
-  deliveryAddress?: string;
+  deliveryAddress?: string | any;
   notes?: string;
   startDate: string;
   status: 'active' | 'paused' | 'cancelled';
   nextDelivery: string;
+  updatedAt?: string;
 }

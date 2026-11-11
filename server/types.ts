@@ -3,6 +3,7 @@ export interface WorkerEnv {
     fetch: (request: Request) => Promise<Response>;
   };
   CACHE?: any; // Workers KV Namespace binding
+  DB?: any; // Cloudflare D1 Database binding
   IG_ACCESS_TOKEN?: string;
   IG_APP_SECRET?: string;
   IG_VERIFY_TOKEN?: string;

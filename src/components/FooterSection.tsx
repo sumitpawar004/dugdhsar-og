@@ -73,13 +73,13 @@ export const FooterSection: React.FC = () => {
             <div>
               <strong className="block text-[#FAF6EE] text-xs mb-0.5">Physical Shop (Seoni):</strong>
               <a 
-                href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
+                href="https://www.google.com/maps/dir/?api=1&destination=22.085917,79.55775"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[11px] leading-relaxed text-[#F3EDE1]/75 hover:text-[#C2A36C] transition-colors block"
-                title="Get driving directions on Google Maps"
+                title="Get driving directions to 22°05'09.3&quot;N 79°33'27.9&quot;E on Google Maps"
               >
-                DUGDHSAR Dairy, 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661 ↗
+                DUGDHSAR Dairy, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, MP 480661 (GPS: 22°05'09.3"N 79°33'27.9"E) ↗
               </a>
             </div>
 

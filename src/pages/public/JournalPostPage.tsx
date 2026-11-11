@@ -2,12 +2,21 @@ import React from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { ArrowLeft, Clock, User, Share2, Tag, CheckCircle2 } from 'lucide-react';
+import { usePageSEO } from '../../lib/seo';
 
 export const JournalPostPage: React.FC = () => {
   const { journalPosts } = useStore();
   const { params, navigate } = useRouter();
 
   const post = journalPosts.find(p => p.slug === params.slug) || journalPosts[0];
+
+  usePageSEO({
+    title: `${post.title} — Vedic Dairy Journal`,
+    description: post.excerpt,
+    ogType: 'article',
+    ogImage: post.coverImage,
+    ogImageAlt: post.title,
+  });
 
   return (
     <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-12">
