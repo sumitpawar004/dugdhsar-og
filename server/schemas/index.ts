@@ -103,3 +103,13 @@ export const QuarantineSchema = z
     quarantineReason: z.string().max(200).optional(),
   })
   .strict();
+
+export const ContactSchema = z
+  .object({
+    name: z.string().min(2, 'Name must be at least 2 characters').max(100),
+    email: z.string().email('Invalid email address'),
+    phone: z.string().min(10).max(20).optional(),
+    message: z.string().min(5, 'Message must be at least 5 characters').max(1000),
+  })
+  .strict();
+

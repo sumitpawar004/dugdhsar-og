@@ -103,3 +103,35 @@ export function normalizeUtf8String(input: unknown): string {
   // Strip non-printable ASCII control characters (keeping newline, carriage return, tab, and full Unicode space)
   return normalized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
 }
+
+/**
+ * Returns true if current time is before the daily cut-off hour in IST (default: 20 = 8:00 PM IST)
+ */
+export function isWithinDeliveryCutoff(currentTime: Date = new Date(), cutoffHour = 20): boolean {
+  const ist = getIstDate(currentTime);
+  return ist.getHours() < cutoffHour;
+}
+
+/**
+ * Returns exact Asia/Kolkata date and time parts
+ */
+export function getKolkataTimeParts(currentTime: Date = new Date()): { hours: number; minutes: number; day: number; month: number; year: number } {
+  const ist = getIstDate(currentTime);
+  return {
+    hours: ist.getHours(),
+    minutes: ist.getMinutes(),
+    day: ist.getDate(),
+    month: ist.getMonth() + 1,
+    year: ist.getFullYear(),
+  };
+}
+
+/**
+ * Adds days in UTC calendar logic
+ */
+export function addDaysUtc(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+

@@ -32,7 +32,8 @@ import {
   TotpVerifySchema, 
   PincodeSchema as StrictPincodeSchema,
   OrderStatusUpdateSchema,
-  CancelSubscriptionSchema 
+  CancelSubscriptionSchema,
+  ContactSchema
 } from './schemas';
 import { appendRowsToGoogleSheet, SUBSCRIPTION_SHEET_COLUMNS, ORDER_SHEET_COLUMNS } from './sheets';
 import { getInstagramFeed, verifyMetaHubSignature, markInstagramCacheStale } from './instagram';
@@ -47,7 +48,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health';
 import { logger } from './logger';
 import { validateEnv } from './env';
-import { UnauthorizedError, ForbiddenError, BadRequestError, RateLimitError } from './errors/AppError';
+import { UnauthorizedError, ForbiddenError, BadRequestError, RateLimitError, NotFoundError } from './errors/AppError';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CATEGORIES, 
@@ -1236,11 +1237,12 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
 
   // Public Contact Endpoint with strict rate limiting
   app.post('/api/contact', contactRateLimiter, (req: Request, res: Response) => {
-    const { name, phone, message } = req.body;
-    if (!name || !phone || !message) {
-      return res.status(400).json({ success: false, error: 'Name, phone, and message are required.' });
+    const parsed = ContactSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Invalid contact form payload' });
     }
-    logger.info(`[ContactForm] Message from ${name} (${phone}) received`);
+    const { name, phone } = parsed.data;
+    logger.info(`[ContactForm] Message from ${name} (${phone ?? 'no phone'}) received`);
     res.json({ success: true, message: 'Dhanyawad! Your message has been received. Our team in Seoni will contact you shortly.' });
   });
 
@@ -1474,6 +1476,11 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       totalDurationMs: Date.now() - startTime,
       results: testResults
     });
+  });
+
+  // 404 handler for unmatched /api routes
+  app.all('/api/*', (req: Request, _res: Response, next: NextFunction) => {
+    next(new NotFoundError(`API endpoint ${req.method} ${req.path} does not exist.`));
   });
 
   // Centralized Error Handler (leak-proof error formatting with X-Request-Id)
