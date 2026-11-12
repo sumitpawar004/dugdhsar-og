@@ -155,21 +155,35 @@ export const DailyMilkTrackingPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-[#263D30] mb-2">
-                1. Select Pure A2 Gir Cow Milk:
+                1. Select Milk Variety (Cow or Buffalo):
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => setNewSubProduct('DUGDHSAR Fresh A2 Desi Cow Whole Milk')}
                   className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
-                    newSubProduct.includes('Whole')
+                    newSubProduct.includes('Whole') && !newSubProduct.includes('Buffalo')
                       ? 'border-[#263D30] bg-[#FAF6EE] ring-2 ring-[#263D30]/20'
                       : 'border-[#D8C9AD] bg-white hover:border-[#263D30]/50'
                   }`}
                 >
-                  <span className="font-bold text-xs text-[#263D30] block">Whole A2 Milk (4.5% Fat)</span>
+                  <span className="font-bold text-xs text-[#263D30] block">🐄 Gir Cow Whole Milk (A2)</span>
                   <span className="text-[11px] text-[#A34F37] font-semibold mt-0.5 block">₹170 / Litre</span>
                   <span className="text-[10px] text-[#302C26]/60 mt-1 block">Full-cream raw Vedic Gir milk in sterilized glass bottle.</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setNewSubProduct('DUGDHSAR Pure Desi Murrah Buffalo Whole Milk')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    newSubProduct.includes('Buffalo')
+                      ? 'border-[#263D30] bg-[#FAF6EE] ring-2 ring-[#263D30]/20'
+                      : 'border-[#D8C9AD] bg-white hover:border-[#263D30]/50'
+                  }`}
+                >
+                  <span className="font-bold text-xs text-[#263D30] block">🐃 Murrah Buffalo Whole Milk</span>
+                  <span className="text-[11px] text-[#A34F37] font-semibold mt-0.5 block">₹190 / Litre (7.5% Fat)</span>
+                  <span className="text-[10px] text-[#302C26]/60 mt-1 block">Extra thick clotted malai, dense cream, rich calcium.</span>
                 </button>
 
                 <button
@@ -181,7 +195,7 @@ export const DailyMilkTrackingPage: React.FC = () => {
                       : 'border-[#D8C9AD] bg-white hover:border-[#263D30]/50'
                   }`}
                 >
-                  <span className="font-bold text-xs text-[#263D30] block">Light Skimmed A2 Milk (1.5% Fat)</span>
+                  <span className="font-bold text-xs text-[#263D30] block">🐄 Gir Cow Skimmed (1.5% Fat)</span>
                   <span className="text-[11px] text-[#A34F37] font-semibold mt-0.5 block">₹110 / Litre</span>
                   <span className="text-[10px] text-[#302C26]/60 mt-1 block">Low calorie, light cream, easy digestion for fitness.</span>
                 </button>
@@ -248,9 +262,15 @@ export const DailyMilkTrackingPage: React.FC = () => {
               disabled={isCreatingSub}
               onClick={() => {
                 setIsCreatingSub(true);
+                const isBuf = newSubProduct.includes('Buffalo');
+                const isSkim = newSubProduct.includes('Skimmed');
+                const unitPrice = isBuf ? 190 : (isSkim ? 110 : 170);
                 addSubscription({
                   productName: newSubProduct,
                   variant: `${newSubQty} Litre Glass Bottle`,
+                  milkType: isBuf ? 'buffalo' : 'cow',
+                  pricePerUnit: unitPrice,
+                  pricePaise: unitPrice * 100,
                   quantity: newSubQty,
                   frequency: 'daily',
                   deliverySlot: newSubSlot,

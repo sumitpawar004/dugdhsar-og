@@ -172,4 +172,81 @@ describe('Phase 5: Deep Integrations & Geofencing Quality Suite', () => {
       assert.strictEqual(isValid, false);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // 5. Subscription Model: Cow & Buffalo Milk Options & Admin/Manager Access
+  // -------------------------------------------------------------------------
+  describe('Subscription Model: Cow and Buffalo Milk Support & Admin/Manager Full Access', () => {
+    it('provides Buffalo milk in product catalog with 7.5% fat & subscription eligibility', async () => {
+      const { INITIAL_PRODUCTS } = await import('../src/data/seedData');
+      const buffaloMilk = INITIAL_PRODUCTS.find((p) => p.id === 'dug-buffalo-milk');
+      assert.ok(buffaloMilk, 'Buffalo Milk must exist in catalog');
+      assert.strictEqual(buffaloMilk.isSubscriptionEligible, true);
+      assert.strictEqual(buffaloMilk.categoryId, 'cat-milk');
+      assert.ok(buffaloMilk.variants.some((v) => v.pricePaise === 19000), '1L variant must be ₹190 (19000 paise)');
+    });
+
+    it('allows Admin and Manager/Dealer to update price, details, and delete subscriptions via scoped repo', async () => {
+      const { ScopedRepository } = await import('../server/db/scopedRepo');
+      
+      const mockSub = {
+        id: 'sub-test-crud-1',
+        customerId: 'cust-101',
+        customerEmail: 'patron@example.com',
+        productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+        variant: '1 Litre Glass Bottle',
+        milkType: 'cow',
+        pricePerUnit: 170,
+        pricePaise: 17000,
+        quantity: 1,
+        frequency: 'daily',
+        deliverySlot: '5:00 AM - 10:00 AM',
+        dealerId: 'dealer-seoni',
+        deliveryAddress: { pincode: '480661', street: 'Barghat Rd', city: 'Seoni' },
+        startDate: '2026-03-01',
+        status: 'active' as const,
+        nextDelivery: 'Tomorrow, 5:00 AM - 10:00 AM'
+      };
+
+      const stores = {
+        orders: [],
+        subscriptions: [mockSub]
+      };
+
+      // 1. Manager/Dealer access
+      const managerUser = {
+        id: 'mgr-1',
+        email: 'manager@dugdhsar.in',
+        fullName: 'Dealer Manager Seoni',
+        role: 'dealer' as const,
+        assignedPincodes: ['480661'],
+        dealerId: 'dealer-seoni'
+      };
+      const managerRepo = new ScopedRepository(managerUser, stores);
+
+      // Manager modifies subscription: switches to Buffalo Milk, changes quantity to 2, and adjusts price to ₹185 (custom VIP rate)
+      const updated = managerRepo.subscriptions.update(mockSub.id, {
+        productName: 'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk',
+        milkType: 'buffalo',
+        pricePerUnit: 185,
+        pricePaise: 18500,
+        quantity: 2
+      });
+
+      assert.strictEqual(updated.milkType, 'buffalo');
+      assert.strictEqual(updated.pricePerUnit, 185);
+      assert.strictEqual(updated.quantity, 2);
+
+      // 2. Super Admin access: can change details and cancel/delete
+      const adminUser = {
+        id: 'adm-1',
+        email: 'admin@dugdhsar.in',
+        fullName: 'Super Administrator',
+        role: 'super_admin' as const
+      };
+      const adminRepo = new ScopedRepository(adminUser, stores);
+      const cancelled = adminRepo.subscriptions.cancel(mockSub.id, 'Patron relocated');
+      assert.strictEqual(cancelled.status, 'cancelled');
+    });
+  });
 });

@@ -501,6 +501,9 @@ export interface Subscription {
   customerEmail?: string;
   productName: string;
   variant: string;
+  milkType?: 'cow' | 'buffalo' | string;
+  pricePerUnit?: number; // In Rupees (e.g. 170, 190)
+  pricePaise?: number; // In integer paise (e.g. 17000, 19000)
   quantity: number;
   frequency: 'daily' | 'alternate' | 'weekly' | 'weekdays' | string;
   deliverySlot?: string;

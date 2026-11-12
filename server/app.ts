@@ -1074,8 +1074,23 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     res.json({ success: true, message: `Subscription ${req.params.id} cancelled.`, subscription });
   });
 
-  // Soft delete subscription (super_admin only)
-  app.delete('/api/subscriptions/:id', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
+  // Update subscription details and pricing (Admin & Dealer/Manager accessible)
+  app.patch('/api/subscriptions/:id', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const updated = repo.subscriptions.update(req.params.id, req.body, getClientIp(req));
+    res.json({ success: true, message: `Subscription ${req.params.id} updated.`, subscription: updated });
+  });
+
+  app.put('/api/subscriptions/:id', requireAuth, (req: Request, res: Response) => {
+    const user: AuthUser = (req as any).user;
+    const repo = repoForUser(user, { orders: ordersMaster, subscriptions: subscriptionsMaster });
+    const updated = repo.subscriptions.update(req.params.id, req.body, getClientIp(req));
+    res.json({ success: true, message: `Subscription ${req.params.id} updated.`, subscription: updated });
+  });
+
+  // Delete subscription (super_admin & dealer/manager role accessible)
+  app.delete('/api/subscriptions/:id', requireAuth, requireRole(['super_admin', 'dealer']), (req: Request, res: Response) => {
     const user: AuthUser = (req as any).user;
     const { reason } = req.body || {};
     const sub = subscriptionsMaster.find(s => s.id === req.params.id);
@@ -1097,7 +1112,10 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       customerName: subData.customerName || user?.fullName || 'Patron',
       customerPhone: subData.customerPhone || '+91 7067672604',
       customerEmail: subData.customerEmail || user?.email || 'customer@dugdhsar.in',
-      productName: subData.productName || 'A2 Desi Gir Cow Vedic Whole Milk',
+      productName: subData.productName || 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+      milkType: subData.milkType || (subData.productName?.toLowerCase().includes('buffalo') ? 'buffalo' : 'cow'),
+      pricePerUnit: subData.pricePerUnit || (subData.milkType === 'buffalo' ? 190 : 170),
+      pricePaise: subData.pricePaise || ((subData.pricePerUnit || (subData.milkType === 'buffalo' ? 190 : 170)) * 100),
       variant: subData.variant || '1 Litre Glass Bottle',
       quantity: Number(subData.quantity) || 1,
       frequency: subData.frequency || 'daily',

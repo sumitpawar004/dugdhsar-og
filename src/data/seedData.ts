@@ -151,6 +151,43 @@ export const INITIAL_PRODUCTS: Product[] = [
       { label: 'Additives', value: '0.00% Zero' },
     ]
   },
+  {
+    id: 'dug-buffalo-milk',
+    name: 'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk',
+    hindiName: 'शुद्ध देशी मुर्राह भैंस का ताज़ा दूध',
+    slug: 'pure-desi-buffalo-milk',
+    categoryId: 'cat-milk',
+    categorySlug: 'milk',
+    badge: 'Rich & Creamy 7.5% Fat',
+    rating: 4.96,
+    reviewsCount: 247,
+    description: 'Farm-fresh raw & unadulterated pure Murrah buffalo whole milk delivered in sterilized glass bottles. Naturally thick with rich clotted malai, high calcium, and exceptional sweetness.',
+    heritageStory: 'Sourced from free-ranging indigenous Murrah buffaloes raised with ethical green fodder and natural wellness care in Seoni district.',
+    ingredients: ['100% Pure Indigenous Murrah Buffalo Farm Fresh Whole Milk'],
+    shelfLife: '3 Days under continuous 2°C - 4°C refrigeration',
+    storageInstructions: 'Keep refrigerated between 2°C and 4°C. Boil upon delivery for thick traditional malai.',
+    allergens: ['Contains Dairy (Natural Buffalo Milk Fat & Protein)'],
+    purityScore: 494,
+    isSubscriptionEligible: true,
+    isPublished: true,
+    featured: true,
+    createdAt: '2026-01-25T06:00:00Z',
+    images: [
+      { id: 'img-bm-1', productId: 'dug-buffalo-milk', imageUrl: '/assets/aistudio/image_fe6cbcdf.png', altText: 'Pure Buffalo Whole Milk Glass Bottle', sortOrder: 1 },
+      { id: 'img-bm-2', productId: 'dug-buffalo-milk', imageUrl: '/assets/aistudio/1000095624-clean_337007be.png', altText: 'Dugdhsar Buffalo Seal', sortOrder: 2 }
+    ],
+    variants: [
+      { id: 'bm-1l', productId: 'dug-buffalo-milk', sku: 'DUG-BUF-1L', sizeLabel: '1 Litre Glass Bottle', pricePaise: 19000, compareAtPricePaise: 21000, inStock: true, stockCount: 120, isSubscriptionEligible: true },
+      { id: 'bm-500ml', productId: 'dug-buffalo-milk', sku: 'DUG-BUF-500M', sizeLabel: '500 ml Glass Bottle', pricePaise: 10500, compareAtPricePaise: 11500, inStock: true, stockCount: 70, isSubscriptionEligible: true },
+      { id: 'bm-combo-2l', productId: 'dug-buffalo-milk', sku: 'DUG-BUF-2L-PK', sizeLabel: 'Family Pack (2 x 1L Bottles)', pricePaise: 37000, compareAtPricePaise: 42000, inStock: true, stockCount: 45, isSubscriptionEligible: true },
+    ],
+    nutritionalHighlights: [
+      { label: 'Natural Fat', value: '7.5% Extra Creamy' },
+      { label: 'SNF (Solids)', value: '9.5% Rich Body' },
+      { label: 'Calcium', value: '220mg / 100ml' },
+      { label: 'Clotted Malai', value: '100% Guaranteed Thick' },
+    ]
+  },
 
   // 2. GHEE
   {

@@ -109,6 +109,8 @@ export const ManagerDashboardPage: React.FC = () => {
     customerPhone: '',
     customerEmail: '',
     productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+    milkType: 'cow' as 'cow' | 'buffalo',
+    pricePerUnit: 170,
     variant: '1 Litre Glass Bottle',
     quantity: 1,
     frequency: 'daily' as 'daily' | 'alternate' | 'weekdays',
@@ -123,6 +125,8 @@ export const ManagerDashboardPage: React.FC = () => {
     customerPhone: '',
     customerEmail: '',
     productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+    milkType: 'cow' as 'cow' | 'buffalo',
+    pricePerUnit: 170,
     variant: '1 Litre Glass Bottle',
     quantity: 1,
     frequency: 'daily' as 'daily' | 'alternate' | 'weekdays',
@@ -632,6 +636,12 @@ export const ManagerDashboardPage: React.FC = () => {
                           <span className="font-semibold text-white">
                             🥛 {sub.quantity}x {sub.productName} ({sub.variant})
                           </span>
+                          <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-[#14261C] text-[#C2A36C] border border-[#3A5243]">
+                            {sub.milkType === 'buffalo' || sub.productName?.toLowerCase().includes('buffalo') ? '🐃 Murrah Buffalo' : '🐄 Gir Cow A2'}
+                          </span>
+                          <span className="font-bold text-amber-300">
+                            ₹{sub.pricePerUnit || (sub.milkType === 'buffalo' || sub.productName?.toLowerCase().includes('buffalo') ? 190 : 170)}/unit · Total ₹{((sub.pricePerUnit || (sub.milkType === 'buffalo' || sub.productName?.toLowerCase().includes('buffalo') ? 190 : 170)) * sub.quantity)}/day
+                          </span>
                           <span className="text-[#C2A36C]">
                             🕒 {sub.frequency} · {sub.deliverySlot || '5:00 AM - 10:00 AM'}
                           </span>
@@ -660,12 +670,16 @@ export const ManagerDashboardPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => {
+                            const isBuf = sub.milkType === 'buffalo' || sub.productName?.toLowerCase().includes('buffalo');
+                            const unitP = sub.pricePerUnit || (isBuf ? 190 : 170);
                             setEditingSub(sub);
                             setEditSubForm({
                               customerName: sub.customerName || '',
                               customerPhone: sub.customerPhone || '',
                               customerEmail: sub.customerEmail || '',
                               productName: sub.productName,
+                              milkType: isBuf ? 'buffalo' : 'cow',
+                              pricePerUnit: unitP,
                               variant: sub.variant,
                               quantity: sub.quantity,
                               frequency: (sub.frequency as any) || 'daily',
@@ -1297,11 +1311,16 @@ export const ManagerDashboardPage: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                const isBuf = editSubForm.milkType === 'buffalo' || editSubForm.productName.toLowerCase().includes('buffalo');
+                const unitPrice = Number(editSubForm.pricePerUnit) || (isBuf ? 190 : 170);
                 updateSubscription(editingSub.id, {
                   customerName: editSubForm.customerName,
                   customerPhone: editSubForm.customerPhone,
                   customerEmail: editSubForm.customerEmail,
                   productName: editSubForm.productName,
+                  milkType: isBuf ? 'buffalo' : 'cow',
+                  pricePerUnit: unitPrice,
+                  pricePaise: unitPrice * 100,
                   variant: editSubForm.variant,
                   quantity: Number(editSubForm.quantity),
                   frequency: editSubForm.frequency,
@@ -1337,9 +1356,73 @@ export const ManagerDashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Milk Type, Product & Custom Rate */}
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Quantity (Bottles/Day)</label>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Milk Type *</label>
+                  <select
+                    value={editSubForm.milkType}
+                    onChange={(e) => {
+                      const mType = e.target.value as 'cow' | 'buffalo';
+                      const newProd = mType === 'buffalo'
+                        ? 'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk'
+                        : 'DUGDHSAR Fresh A2 Desi Cow Whole Milk';
+                      const newPrice = mType === 'buffalo' ? 190 : 170;
+                      setEditSubForm({
+                        ...editSubForm,
+                        milkType: mType,
+                        productName: newProd,
+                        pricePerUnit: newPrice
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  >
+                    <option value="cow">🐄 A2 Cow</option>
+                    <option value="buffalo">🐃 Buffalo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Dairy Product *</label>
+                  <select
+                    value={editSubForm.productName}
+                    onChange={(e) => {
+                      const pName = e.target.value;
+                      const isBuf = pName.toLowerCase().includes('buffalo');
+                      const defPrice = isBuf ? 190 : (pName.includes('Skimmed') ? 110 : 170);
+                      setEditSubForm({
+                        ...editSubForm,
+                        productName: pName,
+                        milkType: isBuf ? 'buffalo' : 'cow',
+                        pricePerUnit: defPrice
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  >
+                    <option value="DUGDHSAR Fresh A2 Desi Cow Whole Milk">Fresh A2 Whole Cow Milk</option>
+                    <option value="DUGDHSAR Pure Desi Murrah Buffalo Whole Milk">Pure Murrah Buffalo Milk</option>
+                    <option value="DUGDHSAR Fresh A2 Light Skimmed Milk">Fresh A2 Light Cow Milk</option>
+                    <option value="DUGDHSAR Vedic Traditional Bilona Cow Ghee">Vedic Bilona Ghee</option>
+                    <option value="DUGDHSAR Fresh A2 Malai Cottage Cheese (Paneer)">Fresh Malai Paneer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Bottle Rate (₹) *</label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={5000}
+                    value={editSubForm.pricePerUnit}
+                    onChange={(e) => setEditSubForm({ ...editSubForm, pricePerUnit: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-amber-300 font-mono font-bold outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Quantity/Day *</label>
                   <input
                     type="number"
                     min={1}
@@ -1360,6 +1443,12 @@ export const ManagerDashboardPage: React.FC = () => {
                     <option value="paused">Paused</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Daily Bill</label>
+                  <div className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-emerald-400 font-bold font-mono">
+                    ₹{(Number(editSubForm.pricePerUnit || 0) * Number(editSubForm.quantity || 1))}
+                  </div>
                 </div>
               </div>
 
@@ -1398,11 +1487,16 @@ export const ManagerDashboardPage: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                const isBuf = newSubForm.milkType === 'buffalo' || newSubForm.productName.toLowerCase().includes('buffalo');
+                const unitPrice = Number(newSubForm.pricePerUnit) || (isBuf ? 190 : 170);
                 addSubscription({
                   customerName: newSubForm.customerName,
                   customerPhone: newSubForm.customerPhone,
                   customerEmail: newSubForm.customerEmail,
                   productName: newSubForm.productName,
+                  milkType: isBuf ? 'buffalo' : 'cow',
+                  pricePerUnit: unitPrice,
+                  pricePaise: unitPrice * 100,
                   variant: newSubForm.variant,
                   quantity: Number(newSubForm.quantity),
                   frequency: newSubForm.frequency,
@@ -1440,9 +1534,73 @@ export const ManagerDashboardPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Milk Type, Product & Custom Rate */}
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Bottles per Day *</label>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Milk Type *</label>
+                  <select
+                    value={newSubForm.milkType}
+                    onChange={(e) => {
+                      const mType = e.target.value as 'cow' | 'buffalo';
+                      const newProd = mType === 'buffalo'
+                        ? 'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk'
+                        : 'DUGDHSAR Fresh A2 Desi Cow Whole Milk';
+                      const newPrice = mType === 'buffalo' ? 190 : 170;
+                      setNewSubForm({
+                        ...newSubForm,
+                        milkType: mType,
+                        productName: newProd,
+                        pricePerUnit: newPrice
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  >
+                    <option value="cow">🐄 A2 Cow</option>
+                    <option value="buffalo">🐃 Buffalo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Dairy Product *</label>
+                  <select
+                    value={newSubForm.productName}
+                    onChange={(e) => {
+                      const pName = e.target.value;
+                      const isBuf = pName.toLowerCase().includes('buffalo');
+                      const defPrice = isBuf ? 190 : (pName.includes('Skimmed') ? 110 : 170);
+                      setNewSubForm({
+                        ...newSubForm,
+                        productName: pName,
+                        milkType: isBuf ? 'buffalo' : 'cow',
+                        pricePerUnit: defPrice
+                      });
+                    }}
+                    className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-white outline-none focus:border-[#C2A36C]"
+                  >
+                    <option value="DUGDHSAR Fresh A2 Desi Cow Whole Milk">Fresh A2 Whole Cow Milk</option>
+                    <option value="DUGDHSAR Pure Desi Murrah Buffalo Whole Milk">Pure Murrah Buffalo Milk</option>
+                    <option value="DUGDHSAR Fresh A2 Light Skimmed Milk">Fresh A2 Light Cow Milk</option>
+                    <option value="DUGDHSAR Vedic Traditional Bilona Cow Ghee">Vedic Bilona Ghee</option>
+                    <option value="DUGDHSAR Fresh A2 Malai Cottage Cheese (Paneer)">Fresh Malai Paneer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Bottle Rate (₹) *</label>
+                  <input
+                    type="number"
+                    min={10}
+                    max={5000}
+                    value={newSubForm.pricePerUnit}
+                    onChange={(e) => setNewSubForm({ ...newSubForm, pricePerUnit: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-amber-300 font-mono font-bold outline-none focus:border-[#C2A36C]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Bottles/Day *</label>
                   <input
                     type="number"
                     min={1}
@@ -1462,6 +1620,12 @@ export const ManagerDashboardPage: React.FC = () => {
                     <option value="5:00 AM - 10:00 AM">Morning Dawn (5:00 AM – 10:00 AM)</option>
                     <option value="6:00 PM - 10:00 PM">Evening Drop (6:00 PM – 10:00 PM)</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#F3EDE1]/80 mb-1">Daily Bill</label>
+                  <div className="w-full px-3 py-2 bg-[#14261C] border border-[#3A5243] rounded-xl text-emerald-400 font-bold font-mono">
+                    ₹{(Number(newSubForm.pricePerUnit || 0) * Number(newSubForm.quantity || 1))}
+                  </div>
                 </div>
               </div>
 

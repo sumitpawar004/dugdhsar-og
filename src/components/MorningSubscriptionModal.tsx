@@ -27,7 +27,23 @@ export const MorningSubscriptionModal: React.FC = () => {
   } = useStore();
   const { navigate } = useRouter();
 
-  // Plan Selection State
+  // Milk Type & Plan Selection State
+  const [milkType, setMilkType] = useState<'cow' | 'buffalo'>('cow');
+
+  // Cow milk package presets
+  const cowPackages = [
+    { id: 'wm-1l', label: '1 Litre Glass Bottle', price: 170, volume: '1 Litre', popular: true },
+    { id: 'wm-combo-2l', label: '2 Litres Family Pack', price: 330, volume: '2 Litres', popular: false },
+    { id: 'wm-500ml', label: '500 ml Glass Bottle', price: 95, volume: '500 ml', popular: false },
+  ];
+
+  // Buffalo milk package presets
+  const buffaloPackages = [
+    { id: 'bm-1l', label: '1 Litre Glass Bottle', price: 190, volume: '1 Litre', popular: true },
+    { id: 'bm-combo-2l', label: '2 Litres Family Pack', price: 370, volume: '2 Litres', popular: false },
+    { id: 'bm-500ml', label: '500 ml Glass Bottle', price: 105, volume: '500 ml', popular: false },
+  ];
+
   const [selectedVariant, setSelectedVariant] = useState<{
     id: string;
     label: string;
@@ -39,6 +55,15 @@ export const MorningSubscriptionModal: React.FC = () => {
     price: 170,
     volume: '1 Litre'
   });
+
+  const handleMilkTypeChange = (type: 'cow' | 'buffalo') => {
+    setMilkType(type);
+    if (type === 'cow') {
+      setSelectedVariant(cowPackages[0]);
+    } else {
+      setSelectedVariant(buffaloPackages[0]);
+    }
+  };
 
   const [quantity, setQuantity] = useState(1);
   const [frequency, setFrequency] = useState<'daily' | 'alternate' | 'weekdays'>('daily');
@@ -80,10 +105,17 @@ export const MorningSubscriptionModal: React.FC = () => {
       frequency === 'daily' ? 'Daily (Every Morning)' :
       frequency === 'alternate' ? 'Alternate Days' : 'Weekdays (Mon – Fri)';
 
+    const productName = milkType === 'buffalo'
+      ? 'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk'
+      : 'DUGDHSAR Fresh A2 Desi Cow Whole Milk';
+
     // 1. Add subscription in store & persist
     const newSub = addSubscription({
-      productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+      productName,
       variant: selectedVariant.label,
+      milkType,
+      pricePerUnit: selectedVariant.price,
+      pricePaise: selectedVariant.price * 100,
       quantity,
       frequency,
       deliverySlot,
@@ -125,14 +157,16 @@ export const MorningSubscriptionModal: React.FC = () => {
 📝 *Drop Notes:* ${deliveryNotes}
 
 📦 *Subscription Plan:*
-• *Product:* Fresh A2 Gir Cow Whole Milk (Sterile Glass Bottle)
+• *Milk Type:* ${milkType === 'buffalo' ? '🐃 Pure Desi Murrah Buffalo Milk (7.5% Fat)' : '🐄 Fresh A2 Gir Cow Milk (Vedic A2)'}
+• *Product:* ${productName}
 • *Size / Quantity:* ${quantity} x ${selectedVariant.label}
+• *Rate:* ₹${selectedVariant.price} / bottle
 • *Schedule:* ${frequencyLabel}
 • *Delivery Slot:* ${deliverySlot}
 • *Starting Date:* ${startDate}
 • *Daily Approx:* ₹${selectedVariant.price * quantity} / day (Flexible billing)
 
-🛵 *Dispatch Route:* Direct from DUGDHSAR Sanctuary (Sukla) to Doorstep in Seoni, MP.
+🛵 *Dispatch Route:* Direct from DUGDHSAR Sanctuary to Doorstep in Seoni, MP.
 ━━━━━━━━━━━━━━━━━━━━
 _Namaste Dugdhsar Team, please confirm my morning milk bottle subscription and assign our delivery agent._`;
 
@@ -267,17 +301,68 @@ _Namaste Dugdhsar Team, please confirm my morning milk bottle subscription and a
                 </div>
               </div>
 
+              {/* Section 0: Select Milk Type (Cow vs Buffalo) */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#263D30] mb-2.5">
+                  1. Choose Milk Type / दूध का प्रकार चुनें
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => handleMilkTypeChange('cow')}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all relative ${
+                      milkType === 'cow'
+                        ? 'border-[#263D30] bg-[#263D30]/10 ring-2 ring-[#263D30]/30 shadow-xs'
+                        : 'border-[#D8C9AD] hover:border-[#263D30]/40 bg-[#FAF6EE]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-[#263D30] flex items-center gap-1.5">
+                        <span>🐄</span>
+                        <span>A2 Desi Gir Cow Milk</span>
+                      </span>
+                      <span className="font-bold text-xs text-[#A34F37] bg-[#A34F37]/10 px-2 py-0.5 rounded-md">
+                        ₹170 / L
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#302C26]/70 leading-snug">
+                      100% Vedic Gir Cow A2 Beta-Casein · 4.8% Natural Fat · Gentle Vat Pasteurized or Raw.
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => handleMilkTypeChange('buffalo')}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition-all relative ${
+                      milkType === 'buffalo'
+                        ? 'border-[#263D30] bg-[#263D30]/10 ring-2 ring-[#263D30]/30 shadow-xs'
+                        : 'border-[#D8C9AD] hover:border-[#263D30]/40 bg-[#FAF6EE]'
+                    }`}
+                  >
+                    <span className="absolute -top-2.5 right-3 bg-[#A34F37] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      7.5% Fat Rich
+                    </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-bold text-sm text-[#263D30] flex items-center gap-1.5">
+                        <span>🐃</span>
+                        <span>Pure Desi Murrah Buffalo Milk</span>
+                      </span>
+                      <span className="font-bold text-xs text-[#A34F37] bg-[#A34F37]/10 px-2 py-0.5 rounded-md">
+                        ₹190 / L
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#302C26]/70 leading-snug">
+                      Pure Murrah breed · 7.5% High Cream Fat · Extra thick clotted malai & dense body.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Section 1: Choose Size & Plan */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-[#263D30] mb-2.5">
-                  1. Select Bottle Size
+                  2. Select Bottle Size ({milkType === 'buffalo' ? 'Buffalo Milk' : 'A2 Cow Milk'})
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { id: 'wm-1l', label: '1 Litre Glass Bottle', price: 170, volume: '1 Litre', popular: true },
-                    { id: 'wm-combo-2l', label: '2 Litres Family Pack', price: 330, volume: '2 Litres', popular: false },
-                    { id: 'wm-500ml', label: '500 ml Glass Bottle', price: 95, volume: '500 ml', popular: false },
-                  ].map((pkg) => {
+                  {(milkType === 'buffalo' ? buffaloPackages : cowPackages).map((pkg) => {
                     const isSelected = selectedVariant.id === pkg.id;
                     return (
                       <div

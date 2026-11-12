@@ -208,7 +208,36 @@ export class ScopedRepository {
 
         return sub;
       },
+
+      /**
+       * Update subscription details and pricing:
+       * Super admin and dealers/managers have full access to modify price, quantity, milkType, frequency, etc.
+       */
+      update: (subId: string, updates: Partial<Subscription>, clientIp?: string): Subscription => {
+        const sub = this.subscriptions.findById(subId);
+        
+        // Disallow customers from arbitrarily overriding prices directly
+        if (this.user.role === 'customer' && (updates.pricePerUnit !== undefined || updates.pricePaise !== undefined)) {
+          delete updates.pricePerUnit;
+          delete updates.pricePaise;
+        }
+
+        Object.assign(sub, updates);
+        sub.updatedAt = new Date().toISOString();
+
+        logAuditEvent({
+          actor: this.user,
+          action: 'SUBSCRIPTION_MODIFIED',
+          targetType: 'subscription',
+          targetId: sub.id,
+          details: { action: 'update', updates },
+          ip: clientIp,
+        });
+
+        return sub;
+      },
     };
+
   }
 }
 
