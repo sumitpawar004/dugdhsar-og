@@ -1,27 +1,24 @@
-# Cloudflare Pages / Workers Redirects File
-# Enforces canonical domain, lowercase paths, and non-trailing slashes
+# Legacy and alias URL permanent redirects
 
-# Legacy & Alias URL 301 Permanent Redirects
-/home                   /                     301!
-/index.html             /                     301!
-/about                  /our-story            301!
-/story                  /our-story            301!
-/craft                  /our-craft            301!
-/ghee                   /products/ghee        301!
-/milk                   /products/milk        301!
-/paneer                 /products/paneer      301!
-/curd                   /products/curd        301!
-/dahi                   /products/curd        301!
-/butter                 /products/butter      301!
-/khoya                  /products/khoya-mawa  301!
-/mawa                   /products/khoya-mawa  301!
-/locator                /store-locator        301!
-/stores                 /store-locator        301!
-/location               /contact              301!
-/terms                  /terms-and-conditions 301!
-/privacy                /privacy-policy       301!
-/refund                 /cancellation-refund  301!
-/returns                /return-policy        301!
-/shipping               /shipping-policy      301!
-/blog                   /journal              301!
-/articles               /journal              301!
+/home                   /                     301
+/about                  /our-story            301
+/story                  /our-story            301
+/craft                  /our-craft            301
+/ghee                   /products/ghee        301
+/milk                   /products/milk        301
+/paneer                 /products/paneer      301
+/curd                   /products/curd        301
+/dahi                   /products/curd        301
+/butter                 /products/butter      301
+/khoya                  /products/khoya-mawa  301
+/mawa                   /products/khoya-mawa  301
+/locator                /store-locator        301
+/stores                 /store-locator        301
+/location               /contact              301
+/terms                  /terms-and-conditions 301
+/privacy                /privacy-policy       301
+/refund                 /cancellation-refund  301
+/returns                /return-policy        301
+/shipping               /shipping-policy      301
+/blog                   /journal              301
+/articles               /journal              301
