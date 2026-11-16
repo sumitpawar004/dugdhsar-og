@@ -206,10 +206,27 @@ export interface Order {
   deliverySlot: '5:00 AM - 10:00 AM' | '6:00 PM - 10:00 PM' | '5:30 AM - 11:00 AM' | '5:00 PM - 7:00 PM' | string;
   deliveryPincode: string;
   trackingNumber?: string;
+  qrToken?: string;
+  deliveredAt?: string;
+  qrVerifiedAt?: string;
+  qrVerifiedBy?: string;
+  dailyDeliveryDate?: string;
   notes?: string;
   createdAt: string;
   updatedAt?: string;
   estimatedDelivery: string;
+}
+
+export interface DailyDeliveryQrRecord {
+  orderId: string;
+  subscriptionId: string;
+  deliveryDate: string; // YYYY-MM-DD
+  qrToken: string;
+  status: 'scheduled' | 'delivered';
+  verifiedAt?: string;
+  verifiedBy?: string;
+  userId?: string;
+  customerEmail?: string;
 }
 
 // 13. order_items (immutable price snapshot in integer paise)
@@ -470,7 +487,7 @@ export interface QATestResult {
     | 'Wishlist' 
     | 'Checkout' 
     | 'Authentication' 
-    | 'Supabase integration' 
+    | 'Google Auth integration' 
     | 'Payment verification' 
     | 'Admin access' 
     | 'Security rules';

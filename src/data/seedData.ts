@@ -878,93 +878,14 @@ export const LATEST_BATCH_PURITY: BatchPurityData = {
 };
 
 // =========================================================================
-// 10. AUTH & ADMIN USERS (Including sumitpawar65005@gmail.com)
+// 10. AUTH USERS (Empty — clean Google sign-in only, no hardcoded demo data)
 // =========================================================================
-export const DEMO_PROFILES: Profile[] = [
-  {
-    id: 'user-admin-sumit',
-    email: 'sumitpawar65005@gmail.com',
-    fullName: 'Sumit Pawar (System Administrator)',
-    phone: '+91 98200 11223',
-    role: 'admin',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T00:00:00Z'
-  },
-  {
-    id: 'user-cust-1',
-    email: 'customer@dugdhsar.in',
-    fullName: 'Aryaman Sen',
-    phone: '+91 98101 23456',
-    role: 'customer',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-10T12:00:00Z'
-  },
-  {
-    id: 'user-admin-1',
-    email: 'admin@dugdhsar.in',
-    fullName: 'Devavrat Singhal',
-    phone: '+91 7067672604',
-    role: 'admin',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-    createdAt: '2026-01-01T08:00:00Z'
-  }
-];
+export const DEMO_PROFILES: Profile[] = [];
 
-export const DEMO_ADMIN_USERS: AdminUser[] = [
-  {
-    id: 'admin-sumit',
-    email: 'sumitpawar65005@gmail.com',
-    fullName: 'Sumit Pawar',
-    role: 'super_admin',
-    permissions: ['manage_inventory', 'manage_batches', 'manage_orders', 'manage_deliveries', 'manage_payments', 'view_reports', 'manage_admins'],
-    isActive: true,
-    createdAt: '2026-01-01T00:00:00Z'
-  },
-  {
-    id: 'admin-devavrat',
-    email: 'admin@dugdhsar.in',
-    fullName: 'Devavrat Singhal',
-    role: 'admin',
-    permissions: ['manage_inventory', 'manage_batches', 'manage_orders', 'manage_deliveries', 'view_reports'],
-    isActive: true,
-    createdAt: '2026-01-01T08:00:00Z'
-  }
-];
+export const DEMO_ADMIN_USERS: AdminUser[] = [];
 
 // =========================================================================
-// 11. ADDRESSES
+// 11. ADDRESSES (Empty — every Google user creates their own private addresses)
 // =========================================================================
-export const DEMO_ADDRESSES: Address[] = [
-  {
-    id: 'addr-1',
-    userId: 'user-admin-sumit',
-    fullName: 'Sumit Pawar',
-    phone: '+91 7067672604',
-    flatNo: 'Shop 1, Ground Floor',
-    apartment: 'DUGDHSAR Dairy Depo',
-    street: 'Barghat Rd, Sanjay Vihar Colony, Sufi Nagar',
-    landmark: '3HP5+948 Barghat Road',
-    city: 'Seoni',
-    state: 'Madhya Pradesh',
-    pincode: '480661',
-    isDefault: true,
-    deliverySlot: '5:00 AM - 10:00 AM',
-    instructions: 'Direct doorstep delivery at DUGDHSAR retail counter.'
-  },
-  {
-    id: 'addr-2',
-    userId: 'user-cust-1',
-    fullName: 'Aryaman Sen',
-    phone: '+91 7067672604',
-    flatNo: 'Sanctuary Quarters',
-    apartment: 'DUGDHSAR Gaushala',
-    street: 'WMJJ+X34, Sukla Pastures',
-    landmark: 'Sukla Gaushala',
-    city: 'Sukla',
-    state: 'Madhya Pradesh',
-    pincode: '480771',
-    isDefault: false,
-    deliverySlot: '6:00 PM - 10:00 PM',
-    instructions: 'Leave fresh bottle crate at gate.'
-  }
-];
+export const DEMO_ADDRESSES: Address[] = [];
+

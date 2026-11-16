@@ -158,7 +158,7 @@ export const AddressesPage: React.FC = () => {
                       required
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                      placeholder="e.g. Aryaman Sen"
+                      placeholder="e.g. Enter Recipient Name"
                       className="w-full px-3 py-2 text-xs border border-[#D8C9AD] rounded-lg bg-[#F8F4EC] text-[#302C26]"
                     />
                   </div>

@@ -1,22 +1,20 @@
 import React from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
-import { 
-  User, 
-  MapPin, 
-  Package, 
-  Heart, 
-  Sparkles, 
-  LogOut, 
-  ShieldCheck, 
-  Clock,
+import {
+  User,
+  MapPin,
+  Package,
+  Heart,
+  Sparkles,
+  LogOut,
+  ShieldCheck,
   ArrowRight,
   Milk
 } from 'lucide-react';
-import { authService } from '../../lib/supabase';
 
 export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, switchUserPersona, logoutUser } = useStore();
+  const { currentUser, logoutUser } = useStore();
   const { path, navigate } = useRouter();
 
   const navItems = [
@@ -31,48 +29,33 @@ export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        
         {/* User Greeting Bar */}
         <div className="bg-[#FAF6EE] p-6 rounded-2xl border border-[#D8C9AD] mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-[#263D30] text-[#FAF6EE] font-serif font-bold text-xl flex items-center justify-center">
-              {currentUser.fullName.charAt(0)}
+            <div className="w-14 h-14 rounded-full bg-[#263D30] text-[#FAF6EE] font-serif font-bold text-xl flex items-center justify-center shrink-0">
+              {currentUser.fullName.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-serif text-2xl text-[#263D30] font-semibold">{currentUser.fullName}</h1>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="font-serif text-2xl text-[#263D30] font-semibold truncate">
+                  {currentUser.fullName}
+                </h1>
                 <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-[#C2A36C]/20 text-[#263D30]">
                   {currentUser.role}
                 </span>
               </div>
-              <p className="text-xs text-[#302C26]/70">
-                {currentUser.email} · {currentUser.phone}
+              <p className="text-xs text-[#302C26]/70 truncate">
+                {currentUser.email}
+                {currentUser.phone ? ` · ${currentUser.phone}` : ''}
               </p>
             </div>
           </div>
 
-          {/* Quick Persona Switcher for Evaluation */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => switchUserPersona('customer')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                currentUser.role === 'customer'
-                  ? 'bg-[#263D30] text-[#FAF6EE] border-[#263D30]'
-                  : 'bg-[#F8F4EC] text-[#302C26] border-[#D8C9AD]'
-              }`}
-            >
-              Customer Persona
-            </button>
-            <button
-              onClick={() => switchUserPersona('admin')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                currentUser.role === 'admin'
-                  ? 'bg-[#A34F37] text-[#FAF6EE] border-[#A34F37]'
-                  : 'bg-[#F8F4EC] text-[#302C26] border-[#D8C9AD]'
-              }`}
-            >
-              Admin Persona
-            </button>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Private Google Session</span>
+            </span>
           </div>
         </div>
 
@@ -87,7 +70,7 @@ export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ childre
                 <button
                   key={item.href}
                   onClick={() => navigate(item.href)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors text-left ${
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors text-left cursor-pointer ${
                     isActive
                       ? 'bg-[#263D30] text-[#FAF6EE]'
                       : 'text-[#302C26] hover:bg-[#D8C9AD]/30'
@@ -109,7 +92,7 @@ export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ childre
             {currentUser.role === 'admin' && (
               <button
                 onClick={() => navigate('/admin')}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-[#A34F37] hover:bg-[#F8F4EC] transition-colors text-left mt-2 pt-2 border-t border-[#D8C9AD]/40"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-[#A34F37] hover:bg-[#F8F4EC] transition-colors text-left mt-2 pt-2 border-t border-[#D8C9AD]/40 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4" />
@@ -132,9 +115,7 @@ export const AccountLayout: React.FC<{ children: React.ReactNode }> = ({ childre
           </div>
 
           {/* Main Workspace (9 cols) */}
-          <div className="md:col-span-9">
-            {children}
-          </div>
+          <div className="md:col-span-9">{children}</div>
         </div>
       </div>
     </div>

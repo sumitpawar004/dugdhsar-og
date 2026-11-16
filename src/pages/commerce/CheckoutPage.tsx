@@ -20,7 +20,8 @@ import {
 export const CheckoutPage: React.FC = () => {
   const { 
     cart, 
-    addresses, 
+    isAuthenticated,
+    userAddresses, 
     addAddress, 
     cartSubtotalPaise, 
     cartDiscountPaise, 
@@ -28,19 +29,23 @@ export const CheckoutPage: React.FC = () => {
     cartTotalPaise,
     appliedCoupon,
     createOrder,
-    activeDeliveryZone,
     selectedDeliverySlot
   } = useStore();
 
   const { navigate } = useRouter();
 
+  // Guest-only ephemeral address list so unauthenticated checkout stays isolated
+  const [guestAddresses, setGuestAddresses] = useState<Address[]>([]);
+  const visibleAddresses = isAuthenticated ? userAddresses : guestAddresses;
+
   // Active address selection
   const [selectedAddressId, setSelectedAddressId] = useState<string>(
-    addresses[0]?.id || ''
+    visibleAddresses[0]?.id || ''
   );
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // New address form toggle
-  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const [showNewAddressForm, setShowNewAddressForm] = useState(() => visibleAddresses.length === 0);
   const [newAddr, setNewAddr] = useState({
     fullName: '',
     phone: '',
@@ -68,7 +73,7 @@ export const CheckoutPage: React.FC = () => {
         <p className="text-xs text-[#302C26]/70 mb-6">Please add items from the farm catalog first.</p>
         <button
           onClick={() => navigate('/shop')}
-          className="bg-[#263D30] text-[#FAF6EE] px-6 py-2.5 rounded-xl text-xs font-semibold"
+          className="bg-[#263D30] text-[#FAF6EE] px-6 py-2.5 rounded-xl text-xs font-semibold cursor-pointer"
         >
           Explore Shop
         </button>
@@ -76,26 +81,39 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
-  const selectedAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
+  const selectedAddress = visibleAddresses.find(a => a.id === selectedAddressId) || visibleAddresses[0];
 
   const handleAddNewAddress = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAddr.fullName || !newAddr.phone || !newAddr.flatNo || !newAddr.pincode) return;
 
-    const created = addAddress(newAddr);
-    setSelectedAddressId(created.id);
+    setCheckoutError(null);
+    if (isAuthenticated) {
+      const created = addAddress(newAddr);
+      setSelectedAddressId(created.id);
+    } else {
+      const guestAddr: Address = {
+        id: `guest-addr-${Date.now()}`,
+        userId: 'guest',
+        ...newAddr
+      };
+      setGuestAddresses(prev => [guestAddr, ...prev]);
+      setSelectedAddressId(guestAddr.id);
+    }
     setShowNewAddressForm(false);
   };
 
   const handlePlaceOrder = () => {
     if (!selectedAddress) {
-      alert('Please specify or select a delivery address');
+      setCheckoutError('Please add or select a doorstep delivery address before placing your order.');
+      setShowNewAddressForm(true);
       return;
     }
 
+    setCheckoutError(null);
     setIsProcessing(true);
 
-    // Simulate payment transaction & create order with immutable snapshot
+    // Simulate payment transaction & create order with immutable snapshot + unique QR token
     setTimeout(() => {
       const placedOrder = createOrder({
         address: selectedAddress,
@@ -261,8 +279,13 @@ export const CheckoutPage: React.FC = () => {
 
               {/* Existing Saved Addresses */}
               <div className="space-y-3">
-                {addresses.map((addr) => {
-                  const isSelected = selectedAddressId === addr.id;
+                {visibleAddresses.length === 0 && !showNewAddressForm && (
+                  <p className="text-xs text-[#302C26]/70 p-4 rounded-2xl border border-dashed border-[#D8C9AD] text-center">
+                    No saved addresses yet for this account. Click &quot;Add New Address&quot; above to enter your delivery location.
+                  </p>
+                )}
+                {visibleAddresses.map((addr) => {
+                  const isSelected = selectedAddress?.id === addr.id;
                   return (
                     <div 
                       key={addr.id}
@@ -441,11 +464,17 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </div>
 
+            {checkoutError && (
+              <div className="p-3 bg-rose-50 border border-rose-300 text-rose-800 rounded-xl text-xs font-semibold">
+                {checkoutError}
+              </div>
+            )}
+
             {/* Submit CTA */}
             <button
               onClick={handlePlaceOrder}
               disabled={isProcessing}
-              className="w-full bg-[#25D366] hover:bg-[#1EBE5D] text-white py-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20 active:scale-[0.99] disabled:opacity-50"
+              className="w-full bg-[#25D366] hover:bg-[#1EBE5D] text-white py-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#25D366]/20 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
             >
               {isProcessing ? (
                 <span>Generating Order & Opening WhatsApp...</span>

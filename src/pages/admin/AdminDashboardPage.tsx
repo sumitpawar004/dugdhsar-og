@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { formatPaise, Order, Product } from '../../types';
@@ -40,13 +40,21 @@ import {
   RefreshCw,
   Eye,
   Sliders,
-  DollarSign
+  DollarSign,
+  QrCode
 } from 'lucide-react';
+import {
+  authService,
+  getStaffRegistryClient,
+  countEnterpriseAccounts,
+  MAX_ENTERPRISE_STAFF_ACCOUNTS,
+  EnterpriseStaffRegistryClient,
+  EnterprisePortalRole
+} from '../../lib/auth';
 
 export const AdminDashboardPage: React.FC = () => {
   const { 
     currentUser, 
-    switchUserPersona,
     products, 
     orders, 
     subscriptions,
@@ -169,38 +177,136 @@ export const AdminDashboardPage: React.FC = () => {
   const [newCouponCode, setNewCouponCode] = useState('');
   const [newCouponDiscount, setNewCouponDiscount] = useState(10);
 
-  // Local state for Dealers
-  const [dealersList, setDealersList] = useState([
-    { id: 'DLR-01', name: 'Shree Kanha Sweets & Dairy', contact: 'Rameshwar Sahu (+91 98261 44021)', city: 'Seoni, Barghat Rd', tier: 'Gold', creditLimitPaise: 50000000, outstandingPaise: 11550000, status: 'Approved' },
-    { id: 'DLR-02', name: 'Seoni Organic Depot & Store', contact: 'Sunil Agrawal (+91 94251 88301)', city: 'Seoni, Nehru Ward', tier: 'Platinum', creditLimitPaise: 100000000, outstandingPaise: 42000000, status: 'Approved' },
-    { id: 'DLR-03', name: 'Ganga Mithai Bhandar', contact: 'Vijay Rathore (+91 78981 12345)', city: 'Barapatthar, Seoni', tier: 'Silver', creditLimitPaise: 25000000, outstandingPaise: 8000000, status: 'Approved' },
-    { id: 'DLR-04', name: 'Mahakaushal Dairy Mart', contact: 'Dinesh Yadav (+91 91112 55432)', city: 'Lakhnadon / Seoni', tier: 'Silver', creditLimitPaise: 20000000, outstandingPaise: 0, status: 'Pending Review' }
-  ]);
+  // Local state for Dealers (clean start — zero demo records)
+  const [dealersList, setDealersList] = useState<Array<{
+    id: string;
+    name: string;
+    contact: string;
+    city: string;
+    tier: string;
+    creditLimitPaise: number;
+    outstandingPaise: number;
+    status: string;
+  }>>([]);
 
   // Local state for Partners
   const [partnersList] = useState([
-    { id: 'PRT-01', category: 'Cold-Chain Fleet', name: 'Mahakaushal Cold Logistics (Fleet MP-28-D)', coverage: 'Daily Seoni & Rural Corridors', contact: '+91 7067672604', status: 'Active (3.2°C Insulated)' },
+    { id: 'PRT-01', category: 'Cold-Chain Fleet', name: 'Dugdhsar Cold Logistics Fleet', coverage: 'Daily Seoni & Rural Corridors', contact: '+91 7067672604', status: 'Active (3.2°C Insulated)' },
     { id: 'PRT-02', category: 'Certified Testing Lab', name: 'NABL Accredited Dairy Assay Laboratory', coverage: '18-Point Daily Purity & Adulteration Testing', contact: 'lab@dugdhsar.in', status: 'Accredited (ISO/IEC 17025)' },
     { id: 'PRT-03', category: 'Sanctuary Gaushala', name: 'Sukla Vedic Gir Sanctuary Hub', coverage: 'Sukla Pastures (480771)', contact: 'farm@dugdhsar.in', status: 'Active Ahimsa Stewardship' },
-    { id: 'PRT-04', category: 'Payment Gateway', name: 'Razorpay Enterprise Integration', coverage: 'UPI AutoPay, Netbanking, Cards & Escrow', contact: 'api@razorpay.com', status: 'Live & Operational' }
+    { id: 'PRT-04', category: 'Payment Gateway', name: 'Razorpay Enterprise Integration', coverage: 'UPI AutoPay, Netbanking, Cards & Escrow', contact: 'api@dugdhsar.com', status: 'Live & Operational' }
   ]);
 
-  // Local state for Customers
-  const [customersList] = useState([
-    { id: 'CUST-01', name: 'Sunita Sharma', phone: '+91 94251 22890', locality: 'Barghat Road, Sanjay Vihar', subActive: true, milkQty: '2L Daily', totalSpentPaise: 4890000, vip: true },
-    { id: 'CUST-02', name: 'Dr. Anand Verma', phone: '+91 98261 77412', locality: 'Sufi Nagar, Seoni', subActive: true, milkQty: '1L Daily', totalSpentPaise: 2450000, vip: true },
-    { id: 'CUST-03', name: 'Pooja Agrawal', phone: '+91 91112 88901', locality: 'Tagore Ward, Seoni', subActive: false, milkQty: 'On-demand Ghee', totalSpentPaise: 1438800, vip: false },
-    { id: 'CUST-04', name: 'Yashodhara Roy', phone: '+91 98765 43210', locality: 'Civil Lines, Seoni', subActive: true, milkQty: '3L Daily', totalSpentPaise: 7350000, vip: true }
-  ]);
+  // Dynamically derive registered patrons from real orders & subscriptions (zero fake demo customers)
+  const customersList = useMemo(() => {
+    const map = new Map<string, {
+      id: string;
+      name: string;
+      phone: string;
+      locality: string;
+      subActive: boolean;
+      milkQty: string;
+      totalSpentPaise: number;
+      vip: boolean;
+    }>();
 
-  // Local state for Staff & Roles
-  const [staffList, setStaffList] = useState([
-    { id: 'STF-01', name: 'Sumit Pawar', email: 'admin@dugdhsar.in', role: 'Super Admin', status: 'Active', lastActive: 'Just now' },
-    { id: 'STF-02', name: 'Ramesh Patel', email: 'dispatch@dugdhsar.in', role: 'Dispatch & Fleet Lead', status: 'Active', lastActive: '10 mins ago' },
-    { id: 'STF-03', name: 'Dr. Rajesh Deshmukh', email: 'inventory@dugdhsar.in', role: 'Inventory Officer', status: 'Active', lastActive: '1 hour ago' },
-    { id: 'STF-04', name: 'Priya Tiwari', email: 'support@dugdhsar.in', role: 'Customer Desk', status: 'Active', lastActive: '5 mins ago' },
-    { id: 'STF-05', name: 'Manoj Verma', email: 'dealer.manager@dugdhsar.in', role: 'B2B Dealer Manager', status: 'Active', lastActive: 'Yesterday' }
-  ]);
+    for (const s of subscriptions) {
+      const key = (s.customerEmail || s.userId || s.id).toLowerCase();
+      map.set(key, {
+        id: s.userId || s.id,
+        name: s.customerName,
+        phone: s.customerPhone || 'N/A',
+        locality: s.deliveryAddress || 'Seoni, MP',
+        subActive: s.status === 'active',
+        milkQty: `${s.quantity}L ${s.frequency}`,
+        totalSpentPaise: 0,
+        vip: s.quantity >= 2
+      });
+    }
+
+    for (const o of orders) {
+      const key = (o.customerEmail || o.userId || o.id).toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        existing.totalSpentPaise += o.totalPaise;
+        if (existing.totalSpentPaise >= 200000) existing.vip = true;
+      } else {
+        map.set(key, {
+          id: o.userId || o.id,
+          name: o.customerName,
+          phone: o.customerPhone || 'N/A',
+          locality: o.deliveryAddress?.city || o.deliveryPincode || 'Seoni, MP',
+          subActive: false,
+          milkQty: 'On-demand Order',
+          totalSpentPaise: o.totalPaise,
+          vip: o.totalPaise >= 200000
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  }, [orders, subscriptions]);
+
+  // Strict 3-Account Enterprise Registry state (1 Admin Console, 1 Manager Operations, 1 Dealer B2B Supply)
+  const [staffRegistry, setStaffRegistry] = useState<EnterpriseStaffRegistryClient>(() =>
+    getStaffRegistryClient()
+  );
+  const [slotRoleInput, setSlotRoleInput] = useState<'manager' | 'dealer'>('manager');
+  const [slotNameInput, setSlotNameInput] = useState('');
+  const [slotEmailInput, setSlotEmailInput] = useState('');
+  const [staffNotice, setStaffNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    authService.fetchStaffSlots().then((reg) => setStaffRegistry(reg)).catch(() => {});
+  }, []);
+
+  const activeEnterpriseCount = countEnterpriseAccounts(staffRegistry);
+
+  const handleAssignEnterpriseSlot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStaffNotice(null);
+    const res = await authService.assignStaffSlot({
+      role: slotRoleInput,
+      email: slotEmailInput,
+      name: slotNameInput,
+      replaceExisting: false,
+    });
+    if (!res.success || !res.registry) {
+      setStaffNotice({
+        type: 'error',
+        text: res.error || 'Cannot assign account. Maximum 3 enterprise accounts allowed.',
+      });
+      return;
+    }
+    setStaffRegistry(res.registry);
+    setSlotNameInput('');
+    setSlotEmailInput('');
+    setStaffNotice({
+      type: 'success',
+      text: `${slotRoleInput === 'manager' ? 'Manager Operations' : 'Dealer B2B Supply'} Google account authorized (${countEnterpriseAccounts(res.registry)}/${MAX_ENTERPRISE_STAFF_ACCOUNTS}).`,
+    });
+    recordAuditLog('STAFF_SLOT_AUTHORIZED', 'STAFF_RBAC', slotEmailInput.trim().toLowerCase(), {
+      role: slotRoleInput,
+      activeCount: countEnterpriseAccounts(res.registry),
+    });
+  };
+
+  const handleRevokeEnterpriseSlot = async (roleToRevoke: EnterprisePortalRole) => {
+    setStaffNotice(null);
+    const res = await authService.removeStaffSlot(roleToRevoke);
+    if (!res.success || !res.registry) {
+      setStaffNotice({ type: 'error', text: res.error || 'Unable to remove slot.' });
+      return;
+    }
+    setStaffRegistry(res.registry);
+    setStaffNotice({
+      type: 'success',
+      text: `${roleToRevoke.toUpperCase()} portal slot revoked cleanly (${countEnterpriseAccounts(res.registry)}/${MAX_ENTERPRISE_STAFF_ACCOUNTS} active).`,
+    });
+    recordAuditLog('STAFF_SLOT_REVOKED', 'STAFF_RBAC', roleToRevoke, {
+      activeCount: countEnterpriseAccounts(res.registry),
+    });
+  };
 
   // Content Announcement State (Live sync with website top announcement)
   const [bannerNotice, setBannerNotice] = useState(websiteAnnouncement || 'Dawn dispatch completed punctually. Bottles delivered across Seoni before 11:00 AM.');
@@ -208,7 +314,7 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Settings State (Live sync with Store Context settings)
   const [dairySettings, setDairySettings] = useState({
-    fssaiLicense: siteSettings.fssaiNumber || '10020000000000',
+    fssaiLicense: siteSettings.fssaiNumber || '21426230002154',
     gstin: siteSettings.gstin || '23AAAAA0000A1Z5',
     morningCutoff: siteSettings.morningHours || '5:00 AM – 10:00 AM',
     tempMinC: 2.0,
@@ -493,10 +599,11 @@ export const AdminDashboardPage: React.FC = () => {
             </button>
 
             <button
-              onClick={() => { switchUserPersona('customer'); navigate('/account'); }}
-              className="bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold px-4 py-2 rounded-xl text-xs transition-colors cursor-pointer"
+              onClick={() => navigate('/delivery/verify')}
+              className="bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] font-bold px-4 py-2 rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              Customer Mode
+              <QrCode className="w-3.5 h-3.5" />
+              <span>QR Verify Scanner</span>
             </button>
           </div>
         </div>
@@ -891,11 +998,24 @@ export const AdminDashboardPage: React.FC = () => {
 
                       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#C2A36C] pt-1">
                         <span>Slot: <strong className="text-white">{o.deliverySlot}</strong> · Pincode: <strong className="text-white">{o.deliveryPincode}</strong></span>
-                        <span className="font-mono text-white">Tracking: <strong>{o.trackingNumber || 'DS-COLD-SEONI-101'}</strong></span>
+                        <span className="font-mono text-white">
+                          Tracking: <strong>{o.trackingNumber || 'DS-COLD-SEONI'}</strong>
+                          {o.qrVerifiedAt ? ' · ✓ QR Verified' : ''}
+                        </span>
                       </div>
 
                       {/* Super Admin Quick Actions */}
                       <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-[#3A5243]/60">
+                        {o.qrToken && o.status !== 'delivered' && o.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/delivery/verify?orderId=${encodeURIComponent(o.id)}&token=${encodeURIComponent(o.qrToken || '')}`)}
+                            className="px-3 py-1.5 bg-[#C2A36C] hover:bg-[#b0915a] text-[#263D30] rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" />
+                            <span>Scan / Verify QR</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -1953,52 +2073,185 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             )}
 
-            {/* 15. STAFF & ROLES (/admin/staff) */}
+            {/* 15. STAFF & ROLES (/admin/staff) - STRICT MAX 3 ENTERPRISE ACCOUNTS */}
             {activeSection === 'staff' && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h2 className="font-serif text-xl text-white font-semibold">Staff & Role-Based Access Control (RBAC)</h2>
-                    <p className="text-xs text-[#F3EDE1]/70">Admin role permissions & security enforcement</p>
+                    <h2 className="font-serif text-xl text-white font-semibold">
+                      Enterprise Access Lock (Max {MAX_ENTERPRISE_STAFF_ACCOUNTS} Accounts)
+                    </h2>
+                    <p className="text-xs text-[#F3EDE1]/70">
+                      Strict security: Only 1 Admin Console + 1 Manager Operations + 1 Dealer B2B Supply account can ever log in. Unauthorized emails are blocked.
+                    </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      const name = prompt('Enter staff member name:', 'Vikram Rathore');
-                      const email = prompt('Enter staff email:', 'vikram@dugdhsar.in');
-                      if (name && email) {
-                        const newStf = { id: `STF-0${staffList.length + 1}`, name, email, role: 'Operations Manager', status: 'Active', lastActive: 'Never' };
-                        setStaffList([...staffList, newStf]);
-                        recordAuditLog('STAFF_MEMBER_CREATED', 'STAFF_RBAC', email, { role: 'Operations Manager', adminRole: activeStaffRole });
-                      }
-                    }}
-                    className="px-3.5 py-2 bg-[#C2A36C] text-[#263D30] font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Staff Member</span>
-                  </button>
+                  <div className="px-3.5 py-2 rounded-xl bg-emerald-950/70 border border-emerald-700/60 text-emerald-300 text-xs font-bold shrink-0">
+                    Active Accounts: {activeEnterpriseCount} / {MAX_ENTERPRISE_STAFF_ACCOUNTS} MAX
+                  </div>
                 </div>
 
-                {/* Role Matrix */}
-                <div className="border border-[#3A5243] rounded-2xl overflow-hidden divide-y divide-[#3A5243] text-xs">
-                  {staffList.map((stf) => (
-                    <div key={stf.id} className="p-4 bg-[#1F2F26] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <strong className="text-white text-sm">{stf.name}</strong>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C2A36C]/20 text-[#C2A36C] border border-[#C2A36C]/40">
-                            {stf.role}
-                          </span>
-                        </div>
-                        <span className="text-[#F3EDE1]/60 text-[11px]">{stf.email} · Last active: {stf.lastActive}</span>
-                      </div>
+                {staffNotice && (
+                  <div
+                    className={`p-3 rounded-xl text-xs font-medium border ${
+                      staffNotice.type === 'success'
+                        ? 'bg-emerald-950/60 border-emerald-700 text-emerald-200'
+                        : 'bg-rose-950/60 border-rose-700 text-rose-200'
+                    }`}
+                  >
+                    {staffNotice.text}
+                  </div>
+                )}
 
+                {/* Assign Manager / Dealer Slot (Hard-Capped at 3 Total Accounts) */}
+                <form
+                  onSubmit={handleAssignEnterpriseSlot}
+                  className="p-5 bg-[#1F2F26] border border-[#3A5243] rounded-2xl space-y-4 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-[#C2A36C] uppercase tracking-wider text-[11px]">
+                      Assign Open Enterprise Slot (Max 3 Total)
+                    </span>
+                    <span className="text-[11px] text-[#F3EDE1]/60">
+                      {activeEnterpriseCount >= MAX_ENTERPRISE_STAFF_ACCOUNTS
+                        ? 'Limit Reached (3/3) — Revoke Manager or Dealer first'
+                        : `${MAX_ENTERPRISE_STAFF_ACCOUNTS - activeEnterpriseCount} slot(s) remaining`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <select
+                      value={slotRoleInput}
+                      onChange={(e) => setSlotRoleInput(e.target.value as 'manager' | 'dealer')}
+                      className="p-2.5 bg-[#263D30] border border-[#3A5243] rounded-xl text-white font-semibold"
+                    >
+                      <option value="manager">Manager Operations (Slot 2)</option>
+                      <option value="dealer">Dealer B2B Supply (Slot 3)</option>
+                    </select>
+
+                    <input
+                      type="text"
+                      required
+                      value={slotNameInput}
+                      onChange={(e) => setSlotNameInput(e.target.value)}
+                      placeholder="Authorized Person Name"
+                      className="p-2.5 bg-[#263D30] border border-[#3A5243] rounded-xl text-white"
+                    />
+
+                    <input
+                      type="email"
+                      required
+                      value={slotEmailInput}
+                      onChange={(e) => setSlotEmailInput(e.target.value)}
+                      placeholder="authorized.user@gmail.com"
+                      className="p-2.5 bg-[#263D30] border border-[#3A5243] rounded-xl text-white"
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={activeEnterpriseCount >= MAX_ENTERPRISE_STAFF_ACCOUNTS}
+                      className="px-4 py-2.5 bg-[#C2A36C] hover:bg-[#B2925B] disabled:opacity-40 disabled:cursor-not-allowed text-[#263D30] font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Authorize Slot</span>
+                    </button>
+                  </div>
+                </form>
+
+                {/* Exact 3 Enterprise Slots Matrix */}
+                <div className="border border-[#3A5243] rounded-2xl overflow-hidden divide-y divide-[#3A5243] text-xs">
+                  {/* Slot 1: Admin Console */}
+                  <div className="p-4 bg-[#1F2F26] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-700">
-                          {stf.status}
+                        <strong className="text-white text-sm">Slot 1 · Admin Console</strong>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C2A36C]/20 text-[#C2A36C] border border-[#C2A36C]/40">
+                          Super Admin (Locked Owner)
                         </span>
                       </div>
+                      <span className="text-[#F3EDE1]/70 text-[11px] block mt-0.5">
+                        {staffRegistry.admin.name} · {staffRegistry.admin.email}
+                      </span>
                     </div>
-                  ))}
+                    <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2.5 py-1 rounded border border-emerald-700 self-start sm:self-center">
+                      ACTIVE · PROTECTED
+                    </span>
+                  </div>
+
+                  {/* Slot 2: Manager Operations */}
+                  <div className="p-4 bg-[#1F2F26] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <strong className="text-white text-sm">Slot 2 · Manager Operations</strong>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-900/50 text-emerald-300 border border-emerald-700/60">
+                          Operations Manager (Max 1)
+                        </span>
+                      </div>
+                      <span className="text-[#F3EDE1]/70 text-[11px] block mt-0.5">
+                        {staffRegistry.manager
+                          ? `${staffRegistry.manager.name} · ${staffRegistry.manager.email}`
+                          : 'Unassigned (Blocked for everyone except Owner Admin)'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {staffRegistry.manager ? (
+                        <>
+                          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-700">
+                            ACTIVE
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeEnterpriseSlot('manager')}
+                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700 cursor-pointer"
+                            title="Revoke Manager Operations access"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-amber-300 font-semibold bg-amber-950/50 px-2.5 py-1 rounded border border-amber-700/60">
+                          SLOT OPEN
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Slot 3: Dealer B2B Supply */}
+                  <div className="p-4 bg-[#1F2F26] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <strong className="text-white text-sm">Slot 3 · Dealer B2B Supply</strong>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900/40 text-amber-300 border border-amber-700/50">
+                          Authorized Dealer (Max 1)
+                        </span>
+                      </div>
+                      <span className="text-[#F3EDE1]/70 text-[11px] block mt-0.5">
+                        {staffRegistry.dealer
+                          ? `${staffRegistry.dealer.name} · ${staffRegistry.dealer.email}`
+                          : 'Unassigned (Blocked for everyone except Owner Admin)'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {staffRegistry.dealer ? (
+                        <>
+                          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-700">
+                            ACTIVE
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRevokeEnterpriseSlot('dealer')}
+                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-700 cursor-pointer"
+                            title="Revoke Dealer B2B Supply access"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-amber-300 font-semibold bg-amber-950/50 px-2.5 py-1 rounded border border-amber-700/60">
+                          SLOT OPEN
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

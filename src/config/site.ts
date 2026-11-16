@@ -125,7 +125,7 @@ export const siteConfig: SiteConfig = {
       { name: 'Seoni City Wide', postalCode: '480661' },
     ],
     priceRange: '₹85 - ₹1850',
-    fssaiLicense: '11424850000123',
+    fssaiLicense: '21426230002154',
     gstin: '23AAACD1234E1Z5',
   },
   social: {

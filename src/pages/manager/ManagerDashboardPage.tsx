@@ -853,12 +853,21 @@ export const ManagerDashboardPage: React.FC = () => {
           {/* TAB 5: COLD-CHAIN ORDERS */}
           {activeTab === 'orders' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h2 className="font-serif text-xl text-white font-bold">Cold-Chain Orders Dispatch</h2>
                   <p className="text-xs text-[#F3EDE1]/70">Customer milk orders and door delivery routing.</p>
                 </div>
-                <span className="text-xs font-mono text-emerald-400 font-bold">{orders.length} Total Orders</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/delivery/verify')}
+                    className="px-3 py-1.5 bg-[#C2A36C] hover:bg-[#b0915a] text-[#12231A] rounded-lg text-xs font-bold cursor-pointer"
+                  >
+                    Open QR Delivery Scanner
+                  </button>
+                  <span className="text-xs font-mono text-emerald-400 font-bold">{orders.length} Total Orders</span>
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -882,10 +891,20 @@ export const ManagerDashboardPage: React.FC = () => {
                       <div className="flex items-center gap-4 text-[11px] font-mono text-[#F3EDE1]/60">
                         <span>Items: {o.items.map(i => `${i.quantity}x ${i.productNameSnapshot || (i as any).productName}`).join(', ')}</span>
                         <span>Total: <strong className="text-[#C2A36C]">{formatPaise(o.totalPaise)}</strong></span>
+                        {o.qrVerifiedAt && <span className="text-emerald-400 font-bold">✓ QR Verified</span>}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {o.qrToken && o.status !== 'delivered' && o.status !== 'cancelled' && (
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/delivery/verify?orderId=${encodeURIComponent(o.id)}&token=${encodeURIComponent(o.qrToken || '')}`)}
+                          className="px-2.5 py-1.5 bg-[#C2A36C] hover:bg-[#b0915a] text-[#12231A] rounded-lg text-xs font-bold cursor-pointer"
+                        >
+                          Verify QR
+                        </button>
+                      )}
                       <select
                         value={o.status}
                         onChange={(e) => updateOrderStatus(o.id, e.target.value as any, 'Status updated by Operations Manager')}

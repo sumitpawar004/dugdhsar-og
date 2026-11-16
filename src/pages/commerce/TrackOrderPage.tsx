@@ -1,36 +1,51 @@
 import React, { useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
-import { formatPaise } from '../../types';
-import { 
-  Truck, 
-  Thermometer, 
-  CheckCircle2, 
-  Clock, 
-  MapPin, 
-  ShieldCheck, 
-  PhoneCall, 
-  Search 
+import { OrderQrCode } from '../../components/OrderQrCode';
+import {
+  Thermometer,
+  CheckCircle2,
+  PhoneCall,
+  Search,
+  Package
 } from 'lucide-react';
 
 export const TrackOrderPage: React.FC = () => {
-  const { orders } = useStore();
+  const { orders, userOrders, currentUser } = useStore();
   const { navigate } = useRouter();
 
-  const [searchOrderNumber, setSearchOrderNumber] = useState(orders[0]?.orderNumber || 'DS-8941');
-  const activeOrder = orders.find(o => o.orderNumber === searchOrderNumber || o.id === searchOrderNumber) || orders[0];
+  const scopedOrders =
+    currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'dealer'
+      ? orders
+      : userOrders;
+
+  const [searchOrderNumber, setSearchOrderNumber] = useState(scopedOrders[0]?.orderNumber || '');
+  const trimmedSearch = searchOrderNumber.trim().toLowerCase();
+  const activeOrder = trimmedSearch
+    ? scopedOrders.find(
+        (o) =>
+          o.orderNumber.toLowerCase() === trimmedSearch ||
+          o.id.toLowerCase() === trimmedSearch
+      )
+    : scopedOrders[0];
 
   const milestones = [
-    { title: 'Touchless Milking & Quality Seal', time: '04:30 AM', desc: 'Milked from Vedic Gir cows, verified at 492 purity score and bottled fresh.', done: true },
-    { title: 'Vat Pasteurization & Glass Bottling', time: '05:00 AM', desc: 'Rapidly chilled to 3.5°C and bottled in sterile recyclable glass jars.', done: true },
-    { title: 'Refrigerated Cold-Chain Van Dispatch', time: '05:35 AM', desc: 'Loaded into insulated GPS cooler container DS-VAN-08.', done: true },
-    { title: 'Arrival at Customer Doorstep', time: '06:45 AM', desc: 'Placed in insulated doorstep bag with empty bottle collection.', done: activeOrder?.status === 'delivered' }
+    { title: 'Touchless Milking & Quality Seal', time: '04:30 AM', desc: 'Milked from Vedic Gir cows, verified for purity and bottled fresh.', done: true },
+    { title: 'Vat Pasteurization & Glass Bottling', time: '05:00 AM', desc: 'Rapidly chilled to 3.5°C and bottled in sterile recyclable glass jars.', done: activeOrder?.status !== 'cancelled' },
+    { title: 'Refrigerated Cold-Chain Van Dispatch', time: '05:35 AM', desc: 'Loaded into insulated GPS cooler container.', done: activeOrder?.status === 'dispatched' || activeOrder?.status === 'delivered' },
+    {
+      title: 'Arrival & QR Doorstep Verification',
+      time: activeOrder?.qrVerifiedAt ? new Date(activeOrder.qrVerifiedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Pending Scan',
+      desc: activeOrder?.qrVerifiedAt
+        ? `Verified at doorstep by ${activeOrder.qrVerifiedBy || 'Delivery Partner'}.`
+        : 'Delivery partner scans your unique order QR code upon arrival.',
+      done: activeOrder?.status === 'delivered'
+    }
   ];
 
   return (
     <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        
         {/* Header */}
         <div className="text-center max-w-xl mx-auto mb-10">
           <p className="text-xs uppercase tracking-[0.25em] text-[#A34F37] font-semibold mb-2">
@@ -40,7 +55,7 @@ export const TrackOrderPage: React.FC = () => {
             Track Cold-Chain Fleet Delivery
           </h1>
           <p className="text-xs text-[#302C26]/75">
-            Monitor internal bottle temperature, refrigerated van GPS position, and morning delivery window.
+            Monitor internal bottle temperature, morning delivery window, and doorstep QR verification status for your own orders.
           </p>
         </div>
 
@@ -52,13 +67,14 @@ export const TrackOrderPage: React.FC = () => {
               type="text"
               value={searchOrderNumber}
               onChange={(e) => setSearchOrderNumber(e.target.value)}
-              placeholder="Enter Order Number (e.g. DS-8941)"
+              placeholder="Enter your Order Number (e.g. DS-...)"
               className="w-full pl-9 pr-3 py-2 text-xs border border-[#D8C9AD] rounded-xl font-mono text-[#263D30] uppercase bg-[#F8F4EC]"
             />
           </div>
           <button
+            type="button"
             onClick={() => {}}
-            className="bg-[#263D30] text-[#FAF6EE] px-5 py-2 text-xs font-semibold rounded-xl hover:bg-[#1A2B22]"
+            className="bg-[#263D30] text-[#FAF6EE] px-5 py-2 text-xs font-semibold rounded-xl hover:bg-[#1A2B22] cursor-pointer"
           >
             Locate
           </button>
@@ -66,7 +82,6 @@ export const TrackOrderPage: React.FC = () => {
 
         {activeOrder ? (
           <div className="space-y-6">
-            
             {/* Live Telemetry Sensor Card */}
             <div className="bg-[#263D30] text-[#FAF6EE] p-6 sm:p-8 rounded-3xl shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#3A5243]">
@@ -92,8 +107,10 @@ export const TrackOrderPage: React.FC = () => {
               <div className="pt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-[#FAF6EE]/85">
                 <div>
                   <span className="text-[#C2A36C] block text-[11px] font-semibold">Delivery Partner</span>
-                  <span className="font-semibold text-white">Rameshwar Singh</span>
-                  <p className="text-[11px] text-[#FAF6EE]/60">Refrigerated Van #DS-04</p>
+                  <span className="font-semibold text-white">
+                    {activeOrder.qrVerifiedBy || 'Dugdhsar Cold-Chain Partner'}
+                  </span>
+                  <p className="text-[11px] text-[#FAF6EE]/60">Insulated Cold-Chain Fleet</p>
                 </div>
                 <div>
                   <span className="text-[#C2A36C] block text-[11px] font-semibold">Delivery Window</span>
@@ -108,6 +125,18 @@ export const TrackOrderPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Doorstep Delivery QR Verification Pass */}
+            {activeOrder.qrToken && (
+              <OrderQrCode
+                orderId={activeOrder.id}
+                orderNumber={activeOrder.orderNumber}
+                qrToken={activeOrder.qrToken}
+                status={activeOrder.status}
+                verifiedAt={activeOrder.qrVerifiedAt}
+                verifiedBy={activeOrder.qrVerifiedBy}
+              />
+            )}
+
             {/* Timeline Milestones */}
             <div className="bg-[#FAF6EE] p-6 sm:p-8 rounded-3xl border border-[#D8C9AD] shadow-xs">
               <h3 className="font-serif text-xl text-[#263D30] font-semibold mb-6">
@@ -117,11 +146,13 @@ export const TrackOrderPage: React.FC = () => {
               <div className="space-y-6 relative before:absolute before:left-3.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-[#D8C9AD]">
                 {milestones.map((m, idx) => (
                   <div key={idx} className="relative flex items-start gap-4 pl-8">
-                    <div className={`absolute left-0 top-0.5 w-7 h-7 rounded-full border-2 flex items-center justify-center ${
-                      m.done 
-                        ? 'border-[#263D30] bg-[#263D30] text-[#FAF6EE]' 
-                        : 'border-[#D8C9AD] bg-[#FAF6EE] text-slate-300'
-                    }`}>
+                    <div
+                      className={`absolute left-0 top-0.5 w-7 h-7 rounded-full border-2 flex items-center justify-center ${
+                        m.done
+                          ? 'border-[#263D30] bg-[#263D30] text-[#FAF6EE]'
+                          : 'border-[#D8C9AD] bg-[#FAF6EE] text-slate-300'
+                      }`}
+                    >
                       <CheckCircle2 className="w-4 h-4" />
                     </div>
 
@@ -130,9 +161,7 @@ export const TrackOrderPage: React.FC = () => {
                         <span className="font-semibold text-[#263D30]">{m.title}</span>
                         <span className="text-[11px] font-mono text-[#A34F37] font-semibold">{m.time}</span>
                       </div>
-                      <p className="text-xs text-[#302C26]/75 leading-relaxed">
-                        {m.desc}
-                      </p>
+                      <p className="text-xs text-[#302C26]/75 leading-relaxed">{m.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -140,14 +169,14 @@ export const TrackOrderPage: React.FC = () => {
             </div>
 
             {/* Driver Assistance */}
-            <div className="p-4 bg-[#FAF6EE] rounded-2xl border border-[#D8C9AD] flex items-center justify-between text-xs">
+            <div className="p-4 bg-[#FAF6EE] rounded-2xl border border-[#D8C9AD] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
               <div>
                 <span className="font-bold text-[#263D30] block">Need assistance with morning delivery?</span>
                 <span className="text-[#302C26]/70 text-[11px]">Direct priority line to our dawn dispatch supervisor.</span>
               </div>
               <a
                 href="tel:7067672604"
-                className="bg-[#A34F37] text-[#FAF6EE] px-4 py-2 rounded-lg font-semibold hover:bg-[#8e422c] transition-colors flex items-center gap-1.5"
+                className="bg-[#A34F37] text-[#FAF6EE] px-4 py-2 rounded-lg font-semibold hover:bg-[#8e422c] transition-colors flex items-center justify-center gap-1.5"
               >
                 <PhoneCall className="w-3.5 h-3.5" />
                 <span>Call Dispatch (+91 7067672604)</span>
@@ -155,8 +184,32 @@ export const TrackOrderPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="py-16 text-center text-xs text-[#302C26]/70">
-            Order not found. Please verify the order number.
+          <div className="bg-[#FAF6EE] p-12 rounded-3xl border border-[#D8C9AD] text-center space-y-4">
+            <Package className="w-10 h-10 text-[#263D30]/40 mx-auto" />
+            <h3 className="font-serif text-xl text-[#263D30] font-semibold">
+              {scopedOrders.length === 0 ? 'No Active Orders in Your Account' : 'Order Not Found'}
+            </h3>
+            <p className="text-xs text-[#302C26]/70 max-w-md mx-auto">
+              {scopedOrders.length === 0
+                ? 'Sign in with your Google account and place an order to view live cold-chain tracking and doorstep QR codes.'
+                : 'No order matching that number was found in your account.'}
+            </p>
+            <div className="flex justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => navigate('/shop')}
+                className="px-5 py-2.5 bg-[#263D30] text-[#FAF6EE] rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Explore Products
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/login')}
+                className="px-5 py-2.5 bg-white text-[#263D30] border border-[#D8C9AD] rounded-xl text-xs font-semibold cursor-pointer"
+              >
+                Sign In with Google
+              </button>
+            </div>
           </div>
         )}
       </div>

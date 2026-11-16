@@ -6,7 +6,7 @@ export const PaymentResultPage: React.FC = () => {
   const { searchParams, navigate } = useRouter();
   const [status, setStatus] = useState<'verifying' | 'success' | 'failed'>('verifying');
 
-  const orderId = searchParams.get('order_id') || 'ORD-2026-8941';
+  const orderId = searchParams.get('order_id') || '';
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -32,13 +32,17 @@ export const PaymentResultPage: React.FC = () => {
               </div>
               <h2 className="text-2xl font-serif text-[#263D30]">Payment Captured</h2>
               <p className="text-xs text-[#302C26]/70">
-                Payment signature successfully verified for order <strong className="font-mono">{orderId}</strong>.
+                {orderId ? (
+                  <>Payment signature successfully verified for order <strong className="font-mono">{orderId}</strong>.</>
+                ) : (
+                  'Payment signature verified.'
+                )}
               </p>
               <button
-                onClick={() => navigate(`/order/success/${orderId}`)}
-                className="w-full mt-4 bg-[#263D30] text-[#FAF6EE] py-3 rounded-xl text-xs font-semibold hover:bg-[#1A2B22] transition-colors flex items-center justify-center gap-2"
+                onClick={() => navigate(orderId ? `/order/success/${orderId}` : '/account/orders')}
+                className="w-full mt-4 bg-[#263D30] text-[#FAF6EE] py-3 rounded-xl text-xs font-semibold hover:bg-[#1A2B22] transition-colors flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>View Order Receipt</span>
+                <span>{orderId ? 'View Order Receipt' : 'View My Orders'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

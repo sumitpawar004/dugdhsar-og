@@ -7,7 +7,6 @@ import {
   Search, 
   User, 
   ShieldCheck, 
-  Menu, 
   X, 
   Activity, 
   PhoneCall, 
@@ -145,7 +144,11 @@ export const Navbar: React.FC = () => {
               title="Open Navigation Menu"
               aria-label="Navigation Menu"
             >
-              <Menu className="w-5 h-5" />
+              <span className="flex flex-col justify-between w-5 h-3.5" aria-hidden="true">
+                <span className="block h-0.5 w-full bg-current rounded-full" />
+                <span className="block h-0.5 w-full bg-current rounded-full" />
+                <span className="block h-0.5 w-full bg-current rounded-full" />
+              </span>
             </button>
 
             {/* TOP LEFT MENU BAR (Responsive for Windows Tab, Tablet & Desktop) */}

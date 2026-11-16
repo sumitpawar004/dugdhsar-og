@@ -18,6 +18,7 @@ import {
   Profile,
   InventoryBatch,
   ServiceablePincode,
+  DailyDeliveryQrRecord,
   formatPaise
 } from '../types';
 import { 
@@ -30,11 +31,10 @@ import {
   INITIAL_COUPONS, 
   INITIAL_REVIEWS, 
   INITIAL_JOURNAL_POSTS, 
-  LATEST_BATCH_PURITY, 
-  DEMO_PROFILES, 
-  DEMO_ADDRESSES 
+  LATEST_BATCH_PURITY
 } from '../data/seedData';
-import { authService, LocalUser, setLocalSession } from '../lib/supabase';
+import { authService, LocalUser, setLocalSession, isEmailAuthorizedForPortal } from '../lib/auth';
+import { generateUniqueQrToken } from '../lib/qrCode';
 
 interface StoreContextType {
   // Master data
@@ -59,7 +59,6 @@ interface StoreContextType {
   userAddresses: Address[];
   userOrders: Order[];
   userSubscriptions: Subscription[];
-  switchUserPersona: (role: 'customer' | 'admin' | 'operations' | 'support' | 'dealer') => void;
   updateProfile: (updated: Partial<Profile>) => void;
   addAddress: (address: Omit<Address, 'id' | 'userId'>) => Address;
   updateAddress: (id: string, address: Partial<Address>) => void;
@@ -100,6 +99,28 @@ interface StoreContextType {
   }) => Order;
   cancelOrder: (orderId: string, reason?: string) => { success: boolean; message: string };
   getOrderById: (orderId: string) => Order | undefined;
+
+  // Doorstep Delivery QR Verification
+  dailyDeliveryRecords: DailyDeliveryQrRecord[];
+  getOrCreateDailyQr: (subscriptionId: string, deliveryDate: string) => DailyDeliveryQrRecord;
+  getOrderForQrVerify: (orderId: string, token: string) => {
+    type: 'order' | 'daily';
+    order?: Order;
+    dailyRecord?: DailyDeliveryQrRecord;
+    subscription?: Subscription;
+    validToken: boolean;
+  } | null;
+  verifyDeliveryByQr: (
+    orderId: string,
+    token: string,
+    options?: { deliveryDate?: string; partnerName?: string }
+  ) => Promise<{
+    success: boolean;
+    alreadyDelivered?: boolean;
+    message: string;
+    order?: Order;
+    dailyRecord?: DailyDeliveryQrRecord;
+  }>;
 
   // Subscriptions
   subscriptions: Subscription[];
@@ -211,7 +232,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [siteSettings, setSiteSettings] = useState(() => {
     try {
       const saved = localStorage.getItem('dugdhsar_site_settings');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.fssaiNumber || parsed.fssaiNumber === '10020000000000') {
+          parsed.fssaiNumber = '21426230002154';
+        }
+        return parsed;
+      }
     } catch {}
     return {
       brandName: 'Dugdhsar',
@@ -220,7 +247,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       phone: '+91 7067672604',
       whatsapp: '+91 7067672604',
       email: 'contact@dugdhsar.in',
-      fssaiNumber: '10020000000000',
+      fssaiNumber: '21426230002154',
       gstin: '23AAACD1964E1Z5',
       morningHours: '5:00 AM – 10:00 AM',
       eveningHours: '6:00 PM – 10:00 PM',
@@ -250,74 +277,70 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [serviceablePincodes] = useState<ServiceablePincode[]>(INITIAL_SERVICEABLE_PINCODES);
 
-  // User Profile & Addresses - Load from active local session or default to initial patron
+  // Helper for fresh unauthenticated Guest state (zero demo accounts)
+  const createGuestProfile = (): Profile => ({
+    id: 'guest',
+    fullName: 'Guest Patron',
+    email: '',
+    phone: '',
+    role: 'customer',
+    loyaltyPoints: 0,
+    createdAt: new Date().toISOString()
+  });
+
+  // User Profile & Addresses - Load strictly from active Google auth session or clean Guest state
   const [currentUser, setCurrentUser] = useState<Profile>(() => {
     try {
       const session = authService.getCurrentUser();
-      if (session) {
+      if (session && session.email) {
+        const safeRole =
+          session.role === 'admin' && isEmailAuthorizedForPortal(session.email, 'admin')
+            ? 'admin'
+            : session.role === 'manager' && isEmailAuthorizedForPortal(session.email, 'manager')
+            ? 'manager'
+            : session.role === 'dealer' && isEmailAuthorizedForPortal(session.email, 'dealer')
+            ? 'dealer'
+            : 'customer';
         return {
           id: session.id,
           fullName: session.fullName,
           email: session.email,
-          phone: session.phone,
-          role: session.role === 'admin' ? 'admin' : (session.role === 'manager' ? 'manager' : (session.role === 'dealer' ? 'dealer' : 'customer')),
+          phone: session.phone || '',
+          role: safeRole,
           avatarUrl: session.avatarUrl,
-          authProvider: session.authProvider || 'google',
-          loyaltyPoints: 100,
-          createdAt: session.createdAt || '2026-01-01'
+          authProvider: 'google',
+          loyaltyPoints: 0,
+          createdAt: session.createdAt || new Date().toISOString()
         };
       }
     } catch {
-      // fallback
+      // fallback to clean guest
     }
-    return DEMO_PROFILES[1]; // customer@dugdhsar.in (Aryaman Sen)
+    return createGuestProfile();
   });
 
   const isAuthenticated = useMemo(() => {
     return Boolean(currentUser && currentUser.email && currentUser.id !== 'guest');
   }, [currentUser]);
 
-  const loginUser = useCallback((user: LocalUser) => {
-    setLocalSession(user);
-    setCurrentUser({
-      id: user.id,
-      fullName: user.fullName,
-      email: user.email,
-      phone: user.phone,
-      role: user.role === 'admin' ? 'admin' : (user.role === 'manager' ? 'manager' : (user.role === 'dealer' ? 'dealer' : 'customer')),
-      avatarUrl: user.avatarUrl,
-      authProvider: user.authProvider || 'google',
-      loyaltyPoints: 100,
-      createdAt: user.createdAt || new Date().toISOString()
-    });
-  }, []);
-
-  const logoutUser = useCallback(() => {
-    authService.signOut();
-    setCurrentUser({
-      id: 'guest',
-      fullName: 'Guest Patron',
-      email: '',
-      phone: '',
-      role: 'customer',
-      loyaltyPoints: 0,
-      createdAt: new Date().toISOString()
-    });
-  }, []);
+  const userStorageSuffix = useMemo(() => {
+    return (currentUser.id && currentUser.id !== 'guest') ? currentUser.id : 'guest';
+  }, [currentUser.id]);
 
   const [addresses, setAddresses] = useState<Address[]>(() => {
     try {
-      const saved = localStorage.getItem('dugdhsar_addresses');
-      return saved ? JSON.parse(saved) : DEMO_ADDRESSES;
+      const saved = localStorage.getItem('dugdhsar_addresses_v3');
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return DEMO_ADDRESSES;
+      return [];
     }
   });
 
-  // Cart & Wishlist
+  // Cart & Wishlist strictly isolated per signed-in Google user (zero cross-user bleed)
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('dugdhsar_cart_v2');
+      const initialKey = `dugdhsar_cart_v3_${(authService.getCurrentUser()?.id) || 'guest'}`;
+      const saved = localStorage.getItem(initialKey);
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -326,10 +349,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [wishlist, setWishlist] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('dugdhsar_wishlist_v2');
-      return saved ? JSON.parse(saved) : ['dug-whole-milk', 'dug-bilona-ghee'];
+      const initialKey = `dugdhsar_wishlist_v3_${(authService.getCurrentUser()?.id) || 'guest'}`;
+      const saved = localStorage.getItem(initialKey);
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return ['dug-whole-milk', 'dug-bilona-ghee'];
+      return [];
     }
   });
 
@@ -337,113 +361,102 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [deliveryPincode, setDeliveryPincodeState] = useState<string>('480661');
   const [selectedDeliverySlot, setSelectedDeliverySlot] = useState<string>('Morning Delivery (5:00 AM - 10:00 AM)');
 
-  // Orders
+  const loginUser = useCallback((user: LocalUser) => {
+    const verifiedRole: LocalUser['role'] =
+      user.role === 'admin' && isEmailAuthorizedForPortal(user.email, 'admin')
+        ? 'admin'
+        : user.role === 'manager' && isEmailAuthorizedForPortal(user.email, 'manager')
+        ? 'manager'
+        : user.role === 'dealer' && isEmailAuthorizedForPortal(user.email, 'dealer')
+        ? 'dealer'
+        : 'customer';
+
+    const normalizedUser: LocalUser = {
+      ...user,
+      role: verifiedRole,
+      authProvider: 'google',
+      phone: user.phone || '',
+    };
+    setLocalSession(normalizedUser);
+    const nextProfile: Profile = {
+      id: normalizedUser.id,
+      fullName: normalizedUser.fullName,
+      email: normalizedUser.email,
+      phone: normalizedUser.phone || '',
+      role: verifiedRole,
+      avatarUrl: normalizedUser.avatarUrl,
+      authProvider: 'google',
+      loyaltyPoints: 0,
+      createdAt: normalizedUser.createdAt || new Date().toISOString()
+    };
+    setCurrentUser(nextProfile);
+    setAppliedCoupon(null);
+
+    // Load isolated cart & wishlist strictly for this Google user
+    try {
+      const userCart = localStorage.getItem(`dugdhsar_cart_v3_${normalizedUser.id}`);
+      setCart(userCart ? JSON.parse(userCart) : []);
+    } catch {
+      setCart([]);
+    }
+    try {
+      const userWish = localStorage.getItem(`dugdhsar_wishlist_v3_${normalizedUser.id}`);
+      setWishlist(userWish ? JSON.parse(userWish) : []);
+    } catch {
+      setWishlist([]);
+    }
+  }, []);
+
+  const logoutUser = useCallback(() => {
+    authService.signOut();
+    setCurrentUser(createGuestProfile());
+    setAppliedCoupon(null);
+    // Reset active cart & wishlist to isolated guest storage
+    try {
+      const guestCart = localStorage.getItem('dugdhsar_cart_v3_guest');
+      setCart(guestCart ? JSON.parse(guestCart) : []);
+    } catch {
+      setCart([]);
+    }
+    try {
+      const guestWish = localStorage.getItem('dugdhsar_wishlist_v3_guest');
+      setWishlist(guestWish ? JSON.parse(guestWish) : []);
+    } catch {
+      setWishlist([]);
+    }
+  }, []);
+
+  // Orders (clean start — zero demo orders)
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
-      const saved = localStorage.getItem('dugdhsar_orders_v2');
+      const saved = localStorage.getItem('dugdhsar_orders_v3');
       if (saved) return JSON.parse(saved);
     } catch {
       // fallback
     }
-    // Seed initial demo order
-    return [
-      {
-        id: 'ORD-2026-8941',
-        orderNumber: 'DS-8941',
-        userId: 'user-cust-1',
-        customerName: 'Aryaman Sen',
-        customerEmail: 'customer@dugdhsar.in',
-        customerPhone: '+91 98101 23456',
-        status: 'dispatched',
-        items: [
-          {
-            id: 'item-1',
-            orderId: 'ORD-2026-8941',
-            variantId: 'wm-1l',
-            productNameSnapshot: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
-            sizeSnapshot: '1 Litre Glass Bottle',
-            pricePaiseSnapshot: 17000,
-            quantity: 2,
-            totalPaise: 34000,
-            imageUrlSnapshot: '/assets/aistudio/image_fe6cbcdf.png'
-          },
-          {
-            id: 'item-2',
-            orderId: 'ORD-2026-8941',
-            variantId: 'bg-500ml',
-            productNameSnapshot: 'DUGDHSAR Vedic Traditional Bilona Cow Ghee',
-            sizeSnapshot: '500 ml Heritage Glass Jar',
-            pricePaiseSnapshot: 119900,
-            quantity: 1,
-            totalPaise: 119900,
-            imageUrlSnapshot: '/assets/aistudio/1000095624-clean_337007be.png'
-          }
-        ],
-        subtotalPaise: 153900,
-        taxPaise: 7695,
-        shippingPaise: 0,
-        discountPaise: 15000,
-        totalPaise: 146595,
-        paymentMethod: 'upi',
-        paymentStatus: 'captured',
-        deliveryAddress: DEMO_ADDRESSES[0],
-        deliverySlot: '5:00 AM - 10:00 AM',
-        deliveryPincode: '480661',
-        trackingNumber: 'DS-COLD-SEONI-101',
-        createdAt: '2026-02-28T05:15:00Z',
-        estimatedDelivery: 'Today, 07:30 AM (Morning delivery on route)'
-      }
-    ];
+    return [];
   });
 
-  // Subscriptions
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
+  // Daily Delivery QR Verification Records for subscriptions (stored cleanly per day)
+  const [dailyDeliveryRecords, setDailyDeliveryRecords] = useState<DailyDeliveryQrRecord[]>(() => {
     try {
-      const saved = localStorage.getItem('dugdhsar_subscriptions_v2');
+      const saved = localStorage.getItem('dugdhsar_daily_qr_v3');
       if (saved) return JSON.parse(saved);
     } catch {
       // fallback
     }
-    return [
-      {
-        id: 'sub-1',
-        userId: 'user-cust-1',
-        customerEmail: 'customer@dugdhsar.in',
-        productName: 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
-        variant: '1 Litre Glass Bottle',
-        milkType: 'cow',
-        pricePerUnit: 170,
-        pricePaise: 17000,
-        quantity: 2,
-        frequency: 'daily',
-        deliverySlot: '5:00 AM - 10:00 AM',
-        customerName: 'Aryaman Sen',
-        customerPhone: '+91 7067672604',
-        deliveryAddress: 'Shop 1, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni 480661',
-        startDate: '2026-02-01',
-        status: 'active',
-        nextDelivery: 'Tomorrow, 5:00 AM - 10:00 AM'
-      },
-      {
-        id: 'sub-2',
-        userId: 'user-cust-2',
-        customerEmail: 'sunita.sharma@gmail.com',
-        productName: 'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk',
-        variant: '1 Litre Glass Bottle',
-        milkType: 'buffalo',
-        pricePerUnit: 190,
-        pricePaise: 19000,
-        quantity: 1,
-        frequency: 'daily',
-        deliverySlot: '5:00 AM - 10:00 AM',
-        customerName: 'Sunita Sharma',
-        customerPhone: '+91 94251 22890',
-        deliveryAddress: 'Barghat Road, Sanjay Vihar Colony, Seoni 480661',
-        startDate: '2026-02-15',
-        status: 'active',
-        nextDelivery: 'Tomorrow, 5:00 AM - 10:00 AM'
-      }
-    ];
+    return [];
+  });
+
+  // Subscriptions (clean start — zero demo subscriptions)
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_subscriptions_v3');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // fallback
+    }
+    return [];
   });
 
   // Strictly isolated scoped collections per customer for ZERO cross-customer data leakage
@@ -468,34 +481,24 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return addresses.filter(a => a.userId === currentUser.id || a.userId === currentUser.email);
   }, [addresses, currentUser]);
 
-  // Enquiries & Audit Logs
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([
-    {
-      id: 'enq-1',
-      name: 'Radheshyam Gupta',
-      email: 'r.gupta@delhicatering.com',
-      phone: '+91 98110 44556',
-      enquiryType: 'wholesale',
-      subject: 'Bulk Supply of Vedic Bilona Ghee for Luxury Wedding Event',
-      message: 'We require 120 kg of Vedic Bilona Ghee in 1L glass jars for an upcoming destination wedding in Udaipur in April. Please share institutional rate card and batch purity certificates.',
-      status: 'in_progress',
-      createdAt: '2026-02-27T14:30:00Z'
+  // Enquiries & Audit Logs (clean start — zero demo data)
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_enquiries_v3');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
-  ]);
+  });
 
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    {
-      id: 'aud-1',
-      adminUserId: 'user-admin-1',
-      adminEmail: 'admin@dugdhsar.in',
-      action: 'STOCK_SYNC',
-      resourceType: 'INVENTORY',
-      resourceId: 'wm-1l',
-      metadata: { delta: +50, reason: 'Morning milking batch bottling completed' },
-      ipAddress: '103.24.112.45',
-      createdAt: '2026-02-28T05:00:00Z'
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    try {
+      const saved = localStorage.getItem('dugdhsar_audit_logs_v3');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
     }
-  ]);
+  });
 
   // UI state
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
@@ -512,30 +515,87 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [priceFilterRange, setPriceFilterRange] = useState<[number, number]>([0, 5000]);
   const [sortBy, setSortBy] = useState<'featured' | 'price-low' | 'price-high' | 'rating'>('featured');
 
-  // Sync to localStorage
+  // Sync to localStorage cleanly with isolated v3 storage keys
   useEffect(() => {
     localStorage.setItem('dugdhsar_customer_reviews', JSON.stringify(reviews));
   }, [reviews]);
 
   useEffect(() => {
-    localStorage.setItem('dugdhsar_subscriptions_v2', JSON.stringify(subscriptions));
+    localStorage.setItem('dugdhsar_subscriptions_v3', JSON.stringify(subscriptions));
   }, [subscriptions]);
 
   useEffect(() => {
-    localStorage.setItem('dugdhsar_cart_v2', JSON.stringify(cart));
-  }, [cart]);
+    localStorage.setItem(`dugdhsar_cart_v3_${userStorageSuffix}`, JSON.stringify(cart));
+  }, [cart, userStorageSuffix]);
 
   useEffect(() => {
-    localStorage.setItem('dugdhsar_wishlist_v2', JSON.stringify(wishlist));
-  }, [wishlist]);
+    localStorage.setItem(`dugdhsar_wishlist_v3_${userStorageSuffix}`, JSON.stringify(wishlist));
+  }, [wishlist, userStorageSuffix]);
 
   useEffect(() => {
-    localStorage.setItem('dugdhsar_orders_v2', JSON.stringify(orders));
+    localStorage.setItem('dugdhsar_orders_v3', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    localStorage.setItem('dugdhsar_addresses', JSON.stringify(addresses));
+    localStorage.setItem('dugdhsar_daily_qr_v3', JSON.stringify(dailyDeliveryRecords));
+  }, [dailyDeliveryRecords]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_addresses_v3', JSON.stringify(addresses));
   }, [addresses]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_enquiries_v3', JSON.stringify(enquiries));
+  }, [enquiries]);
+
+  useEffect(() => {
+    localStorage.setItem('dugdhsar_audit_logs_v3', JSON.stringify(auditLogs));
+  }, [auditLogs]);
+
+  // Cross-tab instant delivery QR sync via BroadcastChannel & storage events
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'dugdhsar_orders_v3' && e.newValue) {
+        try {
+          setOrders(JSON.parse(e.newValue));
+        } catch {}
+      }
+      if (e.key === 'dugdhsar_daily_qr_v3' && e.newValue) {
+        try {
+          setDailyDeliveryRecords(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('dugdhsar_delivery_sync');
+        bc.onmessage = (event) => {
+          const msg = event.data;
+          if (!msg || typeof msg !== 'object') return;
+          if (msg.type === 'ORDER_DELIVERED' && msg.order) {
+            setOrders(prev => prev.map(o => o.id === msg.order.id ? { ...o, ...msg.order } : o));
+          }
+          if (msg.type === 'DAILY_DELIVERED' && msg.dailyRecord) {
+            setDailyDeliveryRecords(prev => {
+              const exists = prev.some(r => r.orderId === msg.dailyRecord.orderId);
+              if (exists) {
+                return prev.map(r => r.orderId === msg.dailyRecord.orderId ? msg.dailyRecord : r);
+              }
+              return [msg.dailyRecord, ...prev];
+            });
+          }
+        };
+      } catch {}
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      if (bc) bc.close();
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('dugdhsar_products_v2', JSON.stringify(products));
@@ -745,7 +805,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const recomputedDeliveryFeePaise = (recomputedSubtotalPaise >= (zone?.minOrderPaise || 25000)) ? 0 : (zone?.deliveryFeePaise || 5000);
     const recomputedTotalPaise = Math.max(0, recomputedSubtotalPaise - recomputedDiscountPaise + recomputedDeliveryFeePaise);
 
-    const orderId = `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const orderId = `ORD-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}-${Date.now().toString(36).slice(-3).toUpperCase()}`;
     const newOrder: Order = {
       id: orderId,
       orderNumber: `DS-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -766,6 +826,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       deliverySlot: data.address.deliverySlot || '05:30 AM - 11:00 AM',
       deliveryPincode: data.address.pincode,
       trackingNumber: `DS-COLD-${data.address.city.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`,
+      qrToken: generateUniqueQrToken(orderId),
       notes: data.notes,
       createdAt: new Date().toISOString(),
       estimatedDelivery: 'Tomorrow, 05:30 AM - 11:00 AM (Cold-Chain Insulated Box)'
@@ -807,6 +868,229 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const getOrderById = useCallback((orderId: string) => {
     return orders.find(o => o.id === orderId || o.orderNumber === orderId);
   }, [orders]);
+
+  // Unique Daily QR generator (idempotent per subscriptionId + deliveryDate)
+  const getOrCreateDailyQr = useCallback((subscriptionId: string, deliveryDate: string): DailyDeliveryQrRecord => {
+    const existing = dailyDeliveryRecords.find(
+      r => r.subscriptionId === subscriptionId && r.deliveryDate === deliveryDate
+    );
+    if (existing) return existing;
+
+    const orderId = `SUB-${subscriptionId}-${deliveryDate}`;
+    const newRecord: DailyDeliveryQrRecord = {
+      id: `dqr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      subscriptionId,
+      orderId,
+      deliveryDate,
+      qrToken: generateUniqueQrToken(`${subscriptionId}-${deliveryDate}`),
+      status: 'scheduled',
+    };
+    setDailyDeliveryRecords(prev => {
+      if (prev.some(r => r.subscriptionId === subscriptionId && r.deliveryDate === deliveryDate)) {
+        return prev;
+      }
+      return [newRecord, ...prev];
+    });
+    return newRecord;
+  }, [dailyDeliveryRecords]);
+
+  // Lookup order or daily delivery record for QR scanner preview (strictly requires matching token)
+  const getOrderForQrVerify = useCallback((orderId: string, token: string) => {
+    const order = orders.find(o => o.id === orderId || o.orderNumber === orderId);
+    if (order) {
+      return {
+        type: 'order' as const,
+        order,
+        validToken: Boolean(order.qrToken && token && order.qrToken === token)
+      };
+    }
+
+    const dailyRecord = dailyDeliveryRecords.find(r => r.orderId === orderId);
+    if (dailyRecord) {
+      const subscription = subscriptions.find(s => s.id === dailyRecord.subscriptionId);
+      return {
+        type: 'daily' as const,
+        dailyRecord,
+        subscription,
+        validToken: Boolean(dailyRecord.qrToken && token && dailyRecord.qrToken === token)
+      };
+    }
+
+    return null;
+  }, [orders, dailyDeliveryRecords, subscriptions]);
+
+  // Verify Doorstep Arrival via Unique QR Code -> Instantly marks delivered across backend, localStorage & open tabs
+  const verifyDeliveryByQr = useCallback(async (
+    orderId: string,
+    token: string,
+    options?: { deliveryDate?: string; partnerName?: string }
+  ) => {
+    const cleanOrderId = (orderId || '').trim();
+    const cleanToken = (token || '').trim();
+    const partnerName = (options?.partnerName || currentUser.fullName || 'Dugdhsar Delivery Partner').trim();
+
+    if (!cleanOrderId || !cleanToken) {
+      return { success: false, message: 'Order ID and QR verification token are required.' };
+    }
+
+    const localOrder = orders.find(o => o.id === cleanOrderId || o.orderNumber === cleanOrderId);
+    const localDaily = dailyDeliveryRecords.find(r => r.orderId === cleanOrderId);
+
+    // 1. Validate local token immediately if record is held in local state
+    if (localOrder) {
+      if (!localOrder.qrToken || localOrder.qrToken !== cleanToken) {
+        return { success: false, message: 'Invalid or tampered QR security token. Doorstep verification rejected.' };
+      }
+      if (localOrder.status === 'cancelled' || localOrder.status === 'returned') {
+        return { success: false, message: `Cannot verify delivery for ${localOrder.status} order.` };
+      }
+      if (localOrder.status === 'delivered') {
+        return {
+          success: true,
+          alreadyDelivered: true,
+          message: `Order ${localOrder.orderNumber} was already verified at doorstep.`,
+          order: localOrder
+        };
+      }
+    }
+
+    if (localDaily) {
+      if (localDaily.qrToken !== cleanToken) {
+        return { success: false, message: 'Invalid or tampered daily subscription QR security token.' };
+      }
+      if (localDaily.status === 'delivered') {
+        return {
+          success: true,
+          alreadyDelivered: true,
+          message: `Daily delivery (${localDaily.deliveryDate}) was already verified at doorstep.`,
+          dailyRecord: localDaily
+        };
+      }
+    }
+
+    // 2. Call server endpoint when available (for Worker / API-created orders)
+    let serverOrder: Order | undefined;
+    let serverRejected = false;
+    let serverRejectMsg = '';
+
+    try {
+      const res = await fetch('/api/deliveries/verify-qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: cleanOrderId,
+          token: cleanToken,
+          deliveryDate: options?.deliveryDate,
+          partnerName
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        serverOrder = data.order;
+        if (data.alreadyDelivered) {
+          return {
+            success: true,
+            alreadyDelivered: true,
+            message: data.message || 'Already delivered.',
+            order: serverOrder
+          };
+        }
+      } else if (res.status === 403 || res.status === 400) {
+        const errData = await res.json().catch(() => ({}));
+        serverRejected = true;
+        serverRejectMsg = errData.error || 'Doorstep QR verification failed.';
+      }
+    } catch {
+      // Offline / client-only preview mode fallback
+    }
+
+    if (serverRejected) {
+      return { success: false, message: serverRejectMsg };
+    }
+
+    const nowIso = new Date().toISOString();
+
+    // 3. Apply instant state + localStorage + BroadcastChannel update for Standard Order
+    if (localOrder || serverOrder) {
+      const updatedOrder: Order = {
+        ...(localOrder || serverOrder!),
+        ...(serverOrder || {}),
+        status: 'delivered',
+        deliveredAt: serverOrder?.deliveredAt || nowIso,
+        qrVerifiedAt: serverOrder?.qrVerifiedAt || nowIso,
+        qrVerifiedBy: serverOrder?.qrVerifiedBy || partnerName,
+        paymentStatus: (localOrder || serverOrder!)?.paymentMethod === 'cod'
+          ? 'captured'
+          : (localOrder || serverOrder!)?.paymentStatus
+      };
+
+      setOrders(prev => {
+        const exists = prev.some(o => o.id === updatedOrder.id);
+        return exists
+          ? prev.map(o => o.id === updatedOrder.id ? updatedOrder : o)
+          : [updatedOrder, ...prev];
+      });
+
+      recordAuditLog('DELIVERY_QR_VERIFIED', 'ORDERS', updatedOrder.id, {
+        partnerName,
+        verifiedAt: nowIso
+      });
+
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          const bc = new BroadcastChannel('dugdhsar_delivery_sync');
+          bc.postMessage({ type: 'ORDER_DELIVERED', order: updatedOrder });
+          bc.close();
+        } catch {}
+      }
+
+      return {
+        success: true,
+        message: `Doorstep arrival verified for ${updatedOrder.orderNumber}! Status updated to Delivered.`,
+        order: updatedOrder
+      };
+    }
+
+    // 4. Apply instant state + localStorage + BroadcastChannel update for Daily Subscription Drop
+    if (localDaily) {
+      const updatedDaily: DailyDeliveryQrRecord = {
+        ...localDaily,
+        status: 'delivered',
+        verifiedAt: nowIso,
+        verifiedBy: partnerName
+      };
+
+      setDailyDeliveryRecords(prev =>
+        prev.map(r => r.orderId === updatedDaily.orderId ? updatedDaily : r)
+      );
+
+      recordAuditLog('DAILY_MILK_QR_VERIFIED', 'SUBSCRIPTIONS', updatedDaily.subscriptionId, {
+        deliveryDate: updatedDaily.deliveryDate,
+        partnerName,
+        verifiedAt: nowIso
+      });
+
+      if (typeof BroadcastChannel !== 'undefined') {
+        try {
+          const bc = new BroadcastChannel('dugdhsar_delivery_sync');
+          bc.postMessage({ type: 'DAILY_DELIVERED', dailyRecord: updatedDaily });
+          bc.close();
+        } catch {}
+      }
+
+      return {
+        success: true,
+        message: `Daily morning milk drop (${updatedDaily.deliveryDate}) verified at doorstep!`,
+        dailyRecord: updatedDaily
+      };
+    }
+
+    return {
+      success: false,
+      message: 'No matching order or scheduled daily milk delivery was found for this QR code.'
+    };
+  }, [orders, dailyDeliveryRecords, currentUser.fullName, recordAuditLog]);
 
   // Subscriptions
   const addSubscription = useCallback((subData: Omit<Subscription, 'id'>): Subscription => {
@@ -1059,38 +1343,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setReviewModalProduct(null);
   }, []);
 
-  // User Profile & Addresses
-  const switchUserPersona = useCallback((role: 'customer' | 'admin' | 'operations' | 'support' | 'dealer') => {
-    if (role === 'admin' || role === 'operations' || role === 'support') {
-      loginUser({
-        id: 'usr_sumitpawar65005_gmail_com',
-        email: 'sumitpawar65005@gmail.com',
-        fullName: 'Sumit Pawar',
-        phone: '+91 7067672604',
-        role: 'admin',
-        createdAt: '2026-01-01'
-      });
-    } else if (role === 'dealer') {
-      loginUser({
-        id: 'usr_dealer_kanha',
-        email: 'kanha.sweets.dealer@dugdhsar.in',
-        fullName: 'Shree Kanha Sweets & Dairy',
-        phone: '+91 7067672604',
-        role: 'dealer',
-        createdAt: '2026-01-01'
-      });
-    } else {
-      loginUser({
-        id: 'usr_customer_1',
-        email: 'customer@dugdhsar.in',
-        fullName: 'Aryaman Sen',
-        phone: '+91 7067672604',
-        role: 'customer',
-        createdAt: '2026-01-01'
-      });
-    }
-  }, [loginUser]);
-
+  // User Profile & Addresses (Strict user isolation: zero persona switching)
   const updateProfile = useCallback((updated: Partial<Profile>) => {
     setCurrentUser(prev => ({ ...prev, ...updated }));
   }, []);
@@ -1444,7 +1697,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       userAddresses,
       userOrders,
       userSubscriptions,
-      switchUserPersona,
       updateProfile,
       addAddress,
       updateAddress,
@@ -1475,6 +1727,10 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createOrder,
       cancelOrder,
       getOrderById,
+      dailyDeliveryRecords,
+      getOrCreateDailyQr,
+      getOrderForQrVerify,
+      verifyDeliveryByQr,
       subscriptions,
       addSubscription,
       updateSubscription,

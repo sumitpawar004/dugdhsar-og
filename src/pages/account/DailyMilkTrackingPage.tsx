@@ -1,33 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AccountLayout } from './AccountLayout';
 import { useStore } from '../../context/StoreContext';
-import { useRouter } from '../../router/RouterContext';
+import { OrderQrCode } from '../../components/OrderQrCode';
 import { 
   Milk, 
   Calendar as CalendarIcon, 
-  Clock, 
   CheckCircle2, 
-  XCircle, 
-  Truck, 
-  AlertCircle, 
   Pause, 
-  Play, 
   Plus, 
-  PhoneCall, 
-  MessageCircle, 
-  ShieldCheck, 
-  Thermometer, 
-  RotateCcw,
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  MapPin,
-  Check,
   X,
-  FileText,
   AlertTriangle,
-  ArrowRight,
-  Headset
+  ArrowRight
 } from 'lucide-react';
 
 export interface DayDeliveryRecord {
@@ -43,18 +29,19 @@ export interface DayDeliveryRecord {
   missedReason?: string;
   customerNotes?: string;
   reportedDiscrepancy?: string;
+  qrVerifiedAt?: string;
 }
 
 export const DailyMilkTrackingPage: React.FC = () => {
   const { 
     userSubscriptions, 
-    toggleSubscriptionPause, 
+    userAddresses,
     currentUser, 
     addSubscription,
-    isSubscriptionModalOpen,
+    dailyDeliveryRecords,
+    getOrCreateDailyQr,
     setIsSubscriptionModalOpen 
   } = useStore();
-  const { navigate } = useRouter();
 
   // Current active subscription strictly scoped to logged in patron
   const activeSub = userSubscriptions[0] || null;
@@ -69,14 +56,21 @@ export const DailyMilkTrackingPage: React.FC = () => {
     }
   }, [activeSub, setIsSubscriptionModalOpen]);
 
+  const savedDefaultAddr = userAddresses[0]
+    ? `${userAddresses[0].flatNo}, ${userAddresses[0].apartment}, ${userAddresses[0].city} — ${userAddresses[0].pincode}`
+    : '';
+
   // New subscription state for fresh patrons
   const [newSubProduct, setNewSubProduct] = useState('DUGDHSAR Fresh A2 Desi Cow Whole Milk');
   const [newSubQty, setNewSubQty] = useState(1);
   const [newSubSlot, setNewSubSlot] = useState('Morning Delivery (5:00 AM - 10:00 AM)');
+  const [newSubAddress, setNewSubAddress] = useState(savedDefaultAddr);
+  const [subFormError, setSubFormError] = useState('');
   const [isCreatingSub, setIsCreatingSub] = useState(false);
 
   // Month navigation state
   const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
 
@@ -91,14 +85,60 @@ export const DailyMilkTrackingPage: React.FC = () => {
   const [vacationEnd, setVacationEnd] = useState('');
   const [vacationSuccessMsg, setVacationSuccessMsg] = useState('');
 
-  // Daily dynamic override records in state (stored by YYYY-MM-DD)
-  const [overrides, setOverrides] = useState<Record<string, Partial<DayDeliveryRecord>>>({
-    [`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-02`]: {
-      status: 'missed',
-      deliveredQty: 0,
-      missedReason: 'Society gate closed at dawn milking round; compensated on Nov 3.'
+  // Daily dynamic override records persisted cleanly per subscription (zero demo data)
+  const overrideStorageKey = activeSub ? `dugdhsar_daily_overrides_v3_${activeSub.id}` : '';
+  const [overrides, setOverrides] = useState<Record<string, Partial<DayDeliveryRecord>>>(() => {
+    if (!overrideStorageKey) return {};
+    try {
+      const saved = localStorage.getItem(overrideStorageKey);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
     }
   });
+
+  useEffect(() => {
+    if (!overrideStorageKey) {
+      setOverrides({});
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(overrideStorageKey);
+      setOverrides(saved ? JSON.parse(saved) : {});
+    } catch {
+      setOverrides({});
+    }
+  }, [overrideStorageKey]);
+
+  useEffect(() => {
+    if (overrideStorageKey) {
+      localStorage.setItem(overrideStorageKey, JSON.stringify(overrides));
+    }
+  }, [overrides, overrideStorageKey]);
+
+  // Ensure Today's Daily Delivery QR exists when subscription is active
+  useEffect(() => {
+    if (activeSub) {
+      getOrCreateDailyQr(activeSub.id, todayKey);
+    }
+  }, [activeSub, todayKey, getOrCreateDailyQr]);
+
+  // Ensure selected day's Daily Delivery QR exists when inspecting a day
+  useEffect(() => {
+    if (activeSub && selectedDay && selectedDay.status !== 'no_subscription') {
+      getOrCreateDailyQr(activeSub.id, selectedDay.dateStr);
+    }
+  }, [activeSub, selectedDay, getOrCreateDailyQr]);
+
+  const todayQrRecord = useMemo(() => {
+    if (!activeSub) return null;
+    return dailyDeliveryRecords.find(r => r.subscriptionId === activeSub.id && r.deliveryDate === todayKey) || null;
+  }, [activeSub, dailyDeliveryRecords, todayKey]);
+
+  const selectedDayQrRecord = useMemo(() => {
+    if (!activeSub || !selectedDay) return null;
+    return dailyDeliveryRecords.find(r => r.subscriptionId === activeSub.id && r.deliveryDate === selectedDay.dateStr) || null;
+  }, [activeSub, selectedDay, dailyDeliveryRecords]);
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -257,10 +297,37 @@ export const DailyMilkTrackingPage: React.FC = () => {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-bold text-[#263D30] mb-1.5">
+                4. Doorstep Delivery Address (Seoni, MP) *:
+              </label>
+              <input
+                type="text"
+                value={newSubAddress}
+                onChange={(e) => {
+                  setNewSubAddress(e.target.value);
+                  setSubFormError('');
+                }}
+                placeholder="House / Flat No, Colony, Area, Pincode"
+                className="w-full px-3.5 py-2.5 text-xs border border-[#D8C9AD] rounded-xl bg-white text-[#263D30] focus:outline-none focus:border-[#263D30]"
+              />
+            </div>
+
+            {subFormError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs font-semibold">
+                {subFormError}
+              </div>
+            )}
+
             <button
               type="button"
               disabled={isCreatingSub}
               onClick={() => {
+                const trimmedAddr = (newSubAddress || savedDefaultAddr).trim();
+                if (!trimmedAddr) {
+                  setSubFormError('Please enter your doorstep delivery address first.');
+                  return;
+                }
                 setIsCreatingSub(true);
                 const isBuf = newSubProduct.includes('Buffalo');
                 const isSkim = newSubProduct.includes('Skimmed');
@@ -274,9 +341,9 @@ export const DailyMilkTrackingPage: React.FC = () => {
                   quantity: newSubQty,
                   frequency: 'daily',
                   deliverySlot: newSubSlot,
-                  customerName: currentUser.fullName || 'Valued Patron',
-                  customerPhone: currentUser.phone || '+91 7067672604',
-                  deliveryAddress: 'House 42, Barghat Road, Sufi Nagar, Seoni, MP 480661',
+                  customerName: currentUser.fullName || 'Patron',
+                  customerPhone: currentUser.phone || '',
+                  deliveryAddress: trimmedAddr,
                   startDate: new Date().toISOString().split('T')[0],
                   status: 'active',
                   nextDelivery: 'Tomorrow, 5:00 AM - 10:00 AM'
@@ -302,21 +369,37 @@ export const DailyMilkTrackingPage: React.FC = () => {
     const dateKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const formattedDate = dateObj.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 
+    const isBeforeStart = Boolean(activeSub.startDate && dateKey < activeSub.startDate);
     const isPast = (currentYear < today.getFullYear()) || 
       (currentYear === today.getFullYear() && currentMonth < today.getMonth()) ||
       (currentYear === today.getFullYear() && currentMonth === today.getMonth() && d < today.getDate());
     
-    const isToday = currentYear === today.getFullYear() && currentMonth === today.getMonth() && d === today.getDate();
+    const qrRec = dailyDeliveryRecords.find(
+      r => r.subscriptionId === activeSub.id && r.deliveryDate === dateKey
+    );
 
-    let status: 'delivered' | 'missed' | 'scheduled' | 'no_subscription' = isPast ? 'delivered' : 'scheduled';
-    let orderedQty = activeSub.quantity || 1;
-    let deliveredQty = isPast ? orderedQty : isToday ? orderedQty : 0;
-    let deliveryTime = isPast ? '06:15 AM' : isToday ? '06:45 AM (Delivered)' : '05:30 AM – 11:00 AM (Scheduled)';
-    let deliveryPerson = 'Ramesh Patel (Van #MP-28-D-1964)';
+    let status: 'delivered' | 'missed' | 'scheduled' | 'no_subscription' = isBeforeStart
+      ? 'no_subscription'
+      : qrRec?.status === 'delivered'
+      ? 'delivered'
+      : isPast
+      ? 'delivered'
+      : 'scheduled';
+
+    let orderedQty = status === 'no_subscription' ? 0 : (activeSub.quantity || 1);
+    let deliveredQty = status === 'delivered' ? orderedQty : 0;
+    let deliveryTime = qrRec?.status === 'delivered' && qrRec.verifiedAt
+      ? `${new Date(qrRec.verifiedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} (QR Verified)`
+      : isPast && !isBeforeStart
+      ? '06:15 AM'
+      : status === 'no_subscription'
+      ? 'Not Started'
+      : `${activeSub.deliverySlot} (Scheduled)`;
+    let deliveryPerson = qrRec?.verifiedBy || 'Dugdhsar Cold-Chain Partner';
     let missedReason = '';
-    let customerNotes = 'Sterile glass bottle drop at doorstep hook';
+    let customerNotes = 'Sterile glass bottle drop at doorstep';
 
-    if (activeSub.status === 'paused' && !isPast) {
+    if (activeSub.status === 'paused' && !isPast && qrRec?.status !== 'delivered') {
       status = 'no_subscription';
       customerNotes = 'Subscription paused by customer';
     }
@@ -324,9 +407,9 @@ export const DailyMilkTrackingPage: React.FC = () => {
     // Apply manual or vacation overrides
     const override = overrides[dateKey];
     if (override) {
-      if (override.status) status = override.status;
+      if (override.status && qrRec?.status !== 'delivered') status = override.status;
       if (override.orderedQty !== undefined) orderedQty = override.orderedQty;
-      if (override.deliveredQty !== undefined) deliveredQty = override.deliveredQty;
+      if (override.deliveredQty !== undefined && qrRec?.status !== 'delivered') deliveredQty = override.deliveredQty;
       if (override.missedReason) missedReason = override.missedReason;
       if (override.customerNotes) customerNotes = override.customerNotes;
     }
@@ -343,7 +426,8 @@ export const DailyMilkTrackingPage: React.FC = () => {
       deliveryPerson,
       missedReason,
       customerNotes,
-      reportedDiscrepancy: override?.reportedDiscrepancy
+      reportedDiscrepancy: override?.reportedDiscrepancy,
+      qrVerifiedAt: qrRec?.verifiedAt
     });
   }
 
@@ -541,6 +625,21 @@ _Please review delivery log and adjust billing credit._`;
             </button>
           </div>
         </div>
+
+        {/* TODAY'S UNIQUE DOORSTEP DELIVERY QR CODE */}
+        {todayQrRecord && (
+          <OrderQrCode
+            orderId={todayQrRecord.orderId}
+            orderNumber={`DAILY-${todayKey}`}
+            qrToken={todayQrRecord.qrToken}
+            deliveryDate={todayKey}
+            status={todayQrRecord.status}
+            verifiedAt={todayQrRecord.verifiedAt}
+            verifiedBy={todayQrRecord.verifiedBy}
+            title={`Today's Daily Milk Delivery QR (${today.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})`}
+            subtitle={`Show this unique QR to your Dugdhsar delivery partner for ${activeSub.quantity}L ${activeSub.productName} (${activeSub.deliverySlot}).`}
+          />
+        )}
 
         {/* MONTHLY MILK CONSUMPTION REPORT — Attractive Dynamic Statistics Cards */}
         <div className="bg-[#FAF6EE] p-6 sm:p-8 rounded-3xl border border-[#D8C9AD] shadow-xs">
@@ -825,6 +924,21 @@ _Please review delivery log and adjust billing credit._`;
                     <span className="text-[#263D30] italic">{selectedDay.customerNotes}</span>
                   </div>
                 </div>
+
+                {/* Selected Day Unique Delivery QR Code */}
+                {selectedDay.status !== 'no_subscription' && selectedDayQrRecord && (
+                  <OrderQrCode
+                    orderId={selectedDayQrRecord.orderId}
+                    orderNumber={`DAILY-${selectedDay.dateStr}`}
+                    qrToken={selectedDayQrRecord.qrToken}
+                    deliveryDate={selectedDay.dateStr}
+                    status={selectedDayQrRecord.status}
+                    verifiedAt={selectedDayQrRecord.verifiedAt}
+                    verifiedBy={selectedDayQrRecord.verifiedBy}
+                    title={`Unique QR for ${selectedDay.formattedDate}`}
+                    subtitle="Delivery partner scans this code to verify doorstep milk drop."
+                  />
+                )}
 
                 {/* Action Buttons: Add Extra Bottle / Toggle Status */}
                 <div className="grid grid-cols-2 gap-2 pt-2">

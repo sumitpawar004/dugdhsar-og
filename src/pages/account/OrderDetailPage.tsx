@@ -3,8 +3,10 @@ import { AccountLayout } from './AccountLayout';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { formatPaise } from '../../types';
-import { ArrowLeft, Truck, AlertCircle, CheckCircle2, Clock, MapPin, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Truck } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { getWhatsAppOrderUrl } from '../../utils/whatsapp';
+import { OrderQrCode } from '../../components/OrderQrCode';
 
 export const OrderDetailPage: React.FC = () => {
   const { cancelOrder, getOrderById, currentUser } = useStore();
@@ -134,6 +136,18 @@ export const OrderDetailPage: React.FC = () => {
             </p>
           </div>
         </div>
+
+        {/* Doorstep Delivery QR Code */}
+        {order.qrToken && (
+          <OrderQrCode
+            orderId={order.id}
+            orderNumber={order.orderNumber}
+            qrToken={order.qrToken}
+            status={order.status}
+            verifiedAt={order.qrVerifiedAt}
+            verifiedBy={order.qrVerifiedBy}
+          />
+        )}
 
         {/* Itemized Snapshot Table */}
         <div>

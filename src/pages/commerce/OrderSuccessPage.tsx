@@ -16,16 +16,26 @@ import {
   ChevronUp 
 } from 'lucide-react';
 import { getWhatsAppOrderUrl, formatWhatsAppOrderMessage, OFFICIAL_WHATSAPP_NUMBER } from '../../utils/whatsapp';
+import { OrderQrCode } from '../../components/OrderQrCode';
 
 export const OrderSuccessPage: React.FC = () => {
-  const { orders, getOrderById } = useStore();
+  const { currentUser, isAuthenticated, getOrderById } = useStore();
   const { params, navigate } = useRouter();
 
   const [copied, setCopied] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
   const orderId = params.id;
-  const order = getOrderById(orderId) || orders[0];
+  const candidate = orderId ? getOrderById(orderId) : undefined;
+  const isAuthorized = Boolean(
+    candidate && (
+      currentUser.role === 'admin' ||
+      candidate.userId === currentUser.id ||
+      (isAuthenticated && Boolean(currentUser.email) && candidate.customerEmail?.toLowerCase() === currentUser.email.toLowerCase()) ||
+      (!isAuthenticated && candidate.userId === 'guest')
+    )
+  );
+  const order = isAuthorized ? candidate : undefined;
 
   useEffect(() => {
     // Dynamically load and fire celebratory confetti only on mount
@@ -79,6 +89,22 @@ export const OrderSuccessPage: React.FC = () => {
           <p className="text-xs text-[#302C26]/75 mb-6">
             Order Reference: <strong className="text-[#263D30] font-mono">{order.orderNumber}</strong> ({order.id})
           </p>
+
+          {/* Unique Doorstep Delivery QR Code */}
+          {order.qrToken && (
+            <div className="mb-8 text-left">
+              <OrderQrCode
+                orderId={order.id}
+                orderNumber={order.orderNumber}
+                qrToken={order.qrToken}
+                status={order.status}
+                verifiedAt={order.qrVerifiedAt}
+                verifiedBy={order.qrVerifiedBy}
+                title="Unique Doorstep Delivery QR Code"
+                subtitle="Show this QR code to the Dugdhsar delivery partner at your doorstep to mark delivery completed instantly."
+              />
+            </div>
+          )}
 
           {/* Primary WhatsApp Dispatch Notification Banner */}
           <div className="bg-emerald-50/90 border-2 border-[#25D366] rounded-2xl p-4 sm:p-6 mb-8 text-left shadow-sm">

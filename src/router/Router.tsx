@@ -1,6 +1,7 @@
 import React from 'react';
 import { useRouter } from './RouterContext';
 import { useStore } from '../context/StoreContext';
+import { isEmailAuthorizedForPortal } from '../lib/auth';
 
 // Public pages
 import { HomePage } from '../pages/public/HomePage';
@@ -51,6 +52,9 @@ import { ManagerDashboardPage } from '../pages/manager/ManagerDashboardPage';
 import { AdminLoginPage } from '../pages/admin/AdminLoginPage';
 import { AdminDashboardPage } from '../pages/admin/AdminDashboardPage';
 
+// Delivery Partner QR Portal
+import { DeliveryVerifyPage } from '../pages/delivery/DeliveryVerifyPage';
+
 // 404 Fallback
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { usePageSEO } from '../lib/seo';
@@ -64,6 +68,8 @@ export const AppRouter: React.FC = () => {
     path.startsWith('/dealer') ||
     path.startsWith('/manager') ||
     path.startsWith('/account') ||
+    path.startsWith('/delivery') ||
+    path.startsWith('/verify-delivery') ||
     path === '/checkout' ||
     path === '/cart';
 
@@ -148,9 +154,13 @@ export const AppRouter: React.FC = () => {
     return <ManagerLoginPage />;
   }
 
-  // Strict Manager Panel Route Guard: only users with role === 'manager' or 'admin' can access /manager/*
+  // Strict Manager Panel Route Guard: only authorized Manager or Admin (max 3-account registry)
   if (path === '/manager' || path.startsWith('/manager/')) {
-    if ((currentUser.role !== 'manager' && currentUser.role !== 'admin') || !isAuthenticated) {
+    const canAccessManager =
+      isAuthenticated &&
+      (currentUser.role === 'manager' || currentUser.role === 'admin') &&
+      isEmailAuthorizedForPortal(currentUser.email, 'manager');
+    if (!canAccessManager) {
       return <ManagerLoginPage />;
     }
     return <ManagerDashboardPage />;
@@ -161,12 +171,21 @@ export const AppRouter: React.FC = () => {
     return <AdminLoginPage />;
   }
 
-  // Strict Admin Panel Route Guard: only users with role === 'admin' can access /admin/*
+  // Strict Admin Panel Route Guard: only authorized Owner Admin (max 3-account registry)
   if (path === '/admin' || path.startsWith('/admin/')) {
-    if (currentUser.role !== 'admin' || !isAuthenticated) {
+    const canAccessAdmin =
+      isAuthenticated &&
+      currentUser.role === 'admin' &&
+      isEmailAuthorizedForPortal(currentUser.email, 'admin');
+    if (!canAccessAdmin) {
       return <AdminLoginPage />;
     }
     return <AdminDashboardPage />;
+  }
+
+  // Delivery Partner Doorstep QR Verification Portal
+  if (path === '/delivery/verify' || path === '/verify-delivery') {
+    return <DeliveryVerifyPage />;
   }
 
   // 404 Fallback

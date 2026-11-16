@@ -16,11 +16,11 @@ export const PressCertificationsSection: React.FC = () => {
   const certifications: Certification[] = [
     {
       id: 'fssai',
-      badge: 'Statutory Safety',
-      title: 'FSSAI CERTIFIED STATE-OF-THE-ART PROCESSING',
+      badge: 'Statutory Safety · Seoni, MP',
+      title: 'FSSAI REGISTERED STATE-OF-THE-ART PROCESSING',
       authority: 'Food Safety and Standards Authority of India',
-      details: 'Strict adherence to national dairy sanitation standards. Batch-tested for zero synthetic contaminants, zero heavy metals, and zero artificial homogenization.',
-      regNumber: 'FSSAI Food Safety Standard Compliance'
+      details: 'Officially registered under the FSS Act, 2006 for Dairy Products & Analogues (Wholesaler & Retailer, Valid Upto 11-11-2031). Food Safety Assayed · Pure A2 Dairy.',
+      regNumber: 'FSSAI Reg. No: 21426230002154'
     },
     {
       id: 'purity-assay',
@@ -126,9 +126,19 @@ export const PressCertificationsSection: React.FC = () => {
                         ? 'bg-gradient-to-b from-[#FAF6EE]/15 to-[#FAF6EE]/5 backdrop-blur-md border-[#C2A36C] shadow-2xl' 
                         : 'bg-white/5 border-white/10'
                     }`}>
-                      <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#C2A36C] text-[#263D30] flex items-center justify-center shadow-lg">
-                        <ShieldCheck className="w-8 h-8" />
-                      </div>
+                      {item.id === 'fssai' ? (
+                        <div className="w-20 h-14 mx-auto mb-4 rounded-2xl bg-white p-1.5 flex items-center justify-center shadow-lg">
+                          <img
+                            src="/assets/aistudio/image_7a8553d9.png"
+                            alt="FSSAI Logo"
+                            className="h-full w-auto object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-[#C2A36C] text-[#263D30] flex items-center justify-center shadow-lg">
+                          <ShieldCheck className="w-8 h-8" />
+                        </div>
+                      )}
 
                       <span className="text-[10px] font-black uppercase tracking-widest text-[#C2A36C] block mb-1">
                         {item.badge}
@@ -142,9 +152,22 @@ export const PressCertificationsSection: React.FC = () => {
                         {item.details}
                       </p>
 
-                      <div className="pt-3 border-t border-[#C2A36C]/20 text-[10px] text-[#D8C9AD] font-mono flex items-center justify-center space-x-1">
-                        <FileCheck className="w-3.5 h-3.5 text-[#C2A36C]" />
-                        <span>{item.regNumber}</span>
+                      <div className="pt-3 border-t border-[#C2A36C]/20 text-[10px] text-[#D8C9AD] font-mono flex flex-col items-center justify-center gap-1.5">
+                        <div className="flex items-center space-x-1">
+                          <FileCheck className="w-3.5 h-3.5 text-[#C2A36C]" />
+                          <span>{item.regNumber}</span>
+                        </div>
+                        {item.id === 'fssai' && (
+                          <a
+                            href="/assets/aistudio/certificate-127945312_copy_464ac32d.pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-emerald-300 hover:underline font-sans font-semibold"
+                          >
+                            View Registration Certificate PDF ↗
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -33,8 +33,20 @@ import {
   PincodeSchema as StrictPincodeSchema,
   OrderStatusUpdateSchema,
   CancelSubscriptionSchema,
-  ContactSchema
+  ContactSchema,
+  VerifyDeliveryQrSchema,
+  StaffSlotAssignSchema
 } from './schemas';
+import {
+  authorizeStaffPortalLogin,
+  getStaffRegistry,
+  assignEnterpriseStaffSlot,
+  removeEnterpriseStaffSlot,
+  countActiveStaffAccounts,
+  MAX_ENTERPRISE_STAFF_ACCOUNTS,
+  EnterprisePortalRole
+} from './services/staffAccessRegistry';
+import { generateUniqueQrToken } from '../src/lib/qrCode';
 import { appendRowsToGoogleSheet, SUBSCRIPTION_SHEET_COLUMNS, ORDER_SHEET_COLUMNS } from './sheets';
 import { getInstagramFeed, verifyMetaHubSignature, markInstagramCacheStale } from './instagram';
 import { requestIdMiddleware } from './middleware/requestId';
@@ -254,7 +266,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       return res.status(400).json({ success: false, error: 'Invalid Google authentication payload', details: parsed.error.format() });
     }
 
-    const { idToken, totpCode } = parsed.data;
+    const { idToken, totpCode, portalContext } = parsed.data;
     const env: WorkerEnv = (req as any).env;
 
     try {
@@ -270,11 +282,16 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         name = verified.name;
         picture = verified.picture;
       } catch (e: any) {
-        // Fallback for development simulation tokens
+        // Fallback for preview/test environments when OIDC client ID is not configured
         if (idToken.startsWith('sim_google_token_') || idToken === 'dev_token') {
-          email = req.body.email || 'sumitpawar65005@gmail.com';
-          name = req.body.name || 'Sumit Pawar';
-          picture = req.body.picture || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80';
+          const suppliedEmail = (parsed.data.email || '').trim().toLowerCase();
+          if (!suppliedEmail) {
+            recordFailedAuthAttempt(clientIp);
+            return next(new UnauthorizedError('Google email address is required for authentication.'));
+          }
+          email = suppliedEmail;
+          name = parsed.data.name?.trim() || suppliedEmail.split('@')[0];
+          picture = undefined;
         } else {
           recordFailedAuthAttempt(clientIp);
           return next(new UnauthorizedError(`Google token verification failed: ${e.message}`));
@@ -287,8 +304,38 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         return next(new RateLimitError(`Account temporarily locked due to repeated failed logins. Retry in ${accountLockout.lockRemainingSeconds}s.`, accountLockout.lockRemainingSeconds));
       }
 
-      // 2. Determine user role securely on server (prevents privilege escalation)
-      const role = determineUserRole(email, env);
+      // 2. Determine user role securely & enforce MAX 3 enterprise accounts for Admin / Manager / Dealer
+      let role: UserRole = determineUserRole(email, env);
+      let portalRole: 'customer' | EnterprisePortalRole = 'customer';
+
+      if (portalContext && portalContext !== 'customer') {
+        const portalAuth = await authorizeStaffPortalLogin(email, portalContext, env);
+        if (!portalAuth.allowed || !portalAuth.resolvedRole) {
+          recordFailedAuthAttempt(email);
+          logAuditEvent({
+            actor: { id: `usr_${email.replace(/[^a-z0-9]/g, '_')}`, email, fullName: name, role: 'customer' },
+            action: 'UNAUTHORIZED_PORTAL_ACCESS_BLOCKED',
+            targetType: 'portal',
+            targetId: portalContext,
+            ip: clientIp,
+            details: { reason: portalAuth.reason, activeCount: portalAuth.activeCount }
+          });
+          return next(new ForbiddenError(portalAuth.reason || 'Access denied: Maximum 3 staff accounts limit exceeded or unauthorized email.'));
+        }
+        portalRole = portalAuth.resolvedRole;
+        role = portalAuth.resolvedRole === 'admin' ? 'super_admin' : 'dealer';
+      } else {
+        // Standard storefront sign-in: check if email is the primary owner admin, otherwise strictly customer
+        const registry = await getStaffRegistry(env);
+        const cleanEmail = email.toLowerCase().trim();
+        if (cleanEmail === registry.admin.email.toLowerCase()) {
+          role = 'super_admin';
+          portalRole = 'admin';
+        } else {
+          role = 'customer';
+          portalRole = 'customer';
+        }
+      }
 
       // 3. Super Admin TOTP verification if provided
       if (role === 'super_admin' && totpCode) {
@@ -334,11 +381,109 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       res.json({
         success: true,
         token: accessToken.token,
-        user
+        user: {
+          ...user,
+          portalRole
+        }
       });
     } catch (err: any) {
       recordFailedAuthAttempt(clientIp);
       next(err);
+    }
+  });
+
+  // Public capacity indicator (no PII / no emails leaked)
+  app.get('/api/staff/limits', async (req: Request, res: Response) => {
+    const env: WorkerEnv = (req as any).env;
+    const registry = await getStaffRegistry(env);
+    res.json({
+      success: true,
+      maxAccounts: MAX_ENTERPRISE_STAFF_ACCOUNTS,
+      activeCount: countActiveStaffAccounts(registry),
+      slotsOccupied: {
+        admin: Boolean(registry.admin?.email),
+        manager: Boolean(registry.manager?.email),
+        dealer: Boolean(registry.dealer?.email),
+      }
+    });
+  });
+
+  // Super Admin only: Inspect all 3 Enterprise Access Slots
+  app.get('/api/staff/slots', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response) => {
+    const env: WorkerEnv = (req as any).env;
+    const registry = await getStaffRegistry(env);
+    res.json({
+      success: true,
+      maxAccounts: MAX_ENTERPRISE_STAFF_ACCOUNTS,
+      activeCount: countActiveStaffAccounts(registry),
+      registry
+    });
+  });
+
+  // Super Admin only: Assign/Update a single Manager or Dealer slot (strictly max 3 accounts total)
+  app.post('/api/staff/slots', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response, next: NextFunction) => {
+    const parsed = StaffSlotAssignSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: parsed.error.issues[0]?.message || 'Invalid staff slot assignment payload',
+      });
+    }
+
+    try {
+      const env: WorkerEnv = (req as any).env;
+      const actor: AuthUser = (req as any).user;
+      const result = await assignEnterpriseStaffSlot(parsed.data, env);
+
+      logAuditEvent({
+        actor,
+        action: 'STAFF_SLOT_UPDATED',
+        targetType: 'staff_registry',
+        targetId: parsed.data.role,
+        ip: getClientIp(req),
+        details: { role: parsed.data.role, assignedEmail: parsed.data.email, activeCount: result.activeCount }
+      });
+
+      return res.json({
+        success: true,
+        maxAccounts: MAX_ENTERPRISE_STAFF_ACCOUNTS,
+        activeCount: result.activeCount,
+        registry: result.registry
+      });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // Super Admin only: Revoke Manager or Dealer slot cleanly
+  app.delete('/api/staff/slots/:role', requireAuth, requireRole(['super_admin']), async (req: Request, res: Response, next: NextFunction) => {
+    const roleParam = req.params.role as EnterprisePortalRole;
+    if (roleParam !== 'admin' && roleParam !== 'manager' && roleParam !== 'dealer') {
+      return res.status(400).json({ success: false, error: 'Role must be admin, manager, or dealer.' });
+    }
+
+    try {
+      const env: WorkerEnv = (req as any).env;
+      const actor: AuthUser = (req as any).user;
+      const result = await removeEnterpriseStaffSlot(roleParam, env);
+
+      logAuditEvent({
+        actor,
+        action: 'STAFF_SLOT_REVOKED',
+        targetType: 'staff_registry',
+        targetId: roleParam,
+        ip: getClientIp(req),
+        details: { revokedRole: roleParam, activeCount: result.activeCount }
+      });
+
+      return res.json({
+        success: true,
+        maxAccounts: MAX_ENTERPRISE_STAFF_ACCOUNTS,
+        activeCount: result.activeCount,
+        registry: result.registry
+      });
+    } catch (err) {
+      return next(err);
     }
   });
 
@@ -966,14 +1111,15 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     const totalPaise = subtotalPaise - discountPaise + deliveryFeePaise;
     const isCOD = paymentMethod === 'cod';
 
+    const qrToken = generateUniqueQrToken(orderId);
     const newOrder: Order = {
       id: orderId,
       orderNumber: orderId,
       userId: authUser?.id || customer?.id || 'guest',
       customerId: authUser?.id || customer?.id || 'guest',
       customerName: customer?.fullName || address?.fullName || 'Patron',
-      customerEmail: customer?.email || address?.email || 'customer@dugdhsar.in',
-      customerPhone: customer?.phone || address?.phone || '+91 7067672604',
+      customerEmail: authUser?.email || customer?.email || address?.email || '',
+      customerPhone: customer?.phone || address?.phone || '',
       status: 'confirmed',
       items: orderItems,
       subtotalPaise,
@@ -987,6 +1133,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       shippingAddress: address,
       deliverySlot: deliverySlot || '5:30 AM - 7:00 AM',
       deliveryPincode: address.pincode,
+      qrToken,
       createdAt: new Date().toISOString(),
       estimatedDelivery: 'Tomorrow, 05:30 AM - 07:00 AM (Cold-Chain 2°C-4°C)'
     };
@@ -1035,6 +1182,78 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
 
   app.post('/api/orders/:id/status', requireAuth, requireRole(['super_admin', 'dealer']), handleStatusUpdate);
   app.patch('/api/orders/:id/status', requireAuth, requireRole(['super_admin', 'dealer']), handleStatusUpdate);
+
+  // Delivery Partner Doorstep QR Verification (instant verification & status update)
+  const handleVerifyQr = (req: Request, res: Response) => {
+    const rawBody = {
+      ...req.body,
+      orderId: req.params.id || req.body?.orderId,
+    };
+    const parsed = VerifyDeliveryQrSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: parsed.error.issues[0]?.message || 'Invalid QR verification payload',
+      });
+    }
+
+    const { orderId, token, partnerName } = parsed.data;
+    const order = ordersMaster.find((o) => o.id === orderId || o.orderNumber === orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: `Order ${orderId} not found in active dispatch queue.`,
+      });
+    }
+
+    if (!order.qrToken || order.qrToken !== token) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid or tampered doorstep QR verification token.',
+      });
+    }
+
+    if (order.status === 'cancelled' || order.status === 'returned') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot verify delivery for ${order.status} order.`,
+      });
+    }
+
+    const now = new Date().toISOString();
+    const alreadyDelivered = order.status === 'delivered';
+    const verifier = partnerName?.trim() || (req as any).user?.email || 'Doorstep Delivery Partner';
+
+    if (!alreadyDelivered) {
+      order.status = 'delivered';
+      order.deliveredAt = now;
+      order.qrVerifiedAt = now;
+      order.qrVerifiedBy = verifier;
+      order.updatedAt = now;
+      if (order.paymentMethod === 'cod' && (order.paymentStatus === 'pending' || order.paymentStatus === 'due_on_delivery')) {
+        order.paymentStatus = 'captured';
+      }
+      recordAudit(verifier, 'DELIVERY_QR_VERIFIED', 'order', order.id, {
+        orderNumber: order.orderNumber,
+        verifiedAt: now,
+        partnerName: verifier,
+      });
+    }
+
+    return res.json({
+      success: true,
+      alreadyDelivered,
+      verifiedAt: order.qrVerifiedAt || now,
+      verifiedBy: order.qrVerifiedBy || verifier,
+      message: alreadyDelivered
+        ? `Order ${order.orderNumber} was already verified delivered.`
+        : `Doorstep arrival verified via QR! Order ${order.orderNumber} marked Delivered.`,
+      order,
+    });
+  };
+
+  app.post('/api/deliveries/verify-qr', handleVerifyQr);
+  app.post('/api/orders/:id/verify-delivery', handleVerifyQr);
 
   // Soft delete order (super_admin only for DPDP compliance / audit)
   app.delete('/api/orders/:id', requireAuth, requireRole(['super_admin']), (req: Request, res: Response) => {
@@ -1110,8 +1329,8 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       userId: user?.id || subData.userId || 'guest',
       customerId: user?.id || subData.userId || 'guest',
       customerName: subData.customerName || user?.fullName || 'Patron',
-      customerPhone: subData.customerPhone || '+91 7067672604',
-      customerEmail: subData.customerEmail || user?.email || 'customer@dugdhsar.in',
+      customerPhone: subData.customerPhone || '',
+      customerEmail: subData.customerEmail || user?.email || '',
       productName: subData.productName || 'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
       milkType: subData.milkType || (subData.productName?.toLowerCase().includes('buffalo') ? 'buffalo' : 'cow'),
       pricePerUnit: subData.pricePerUnit || (subData.milkType === 'buffalo' ? 190 : 170),

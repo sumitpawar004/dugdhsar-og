@@ -60,14 +60,32 @@ export const FooterSection: React.FC = () => {
 
           {/* Center Block: FSSAI badge & Farm Location */}
           <div className="md:col-span-3 space-y-3 text-xs text-[#F3EDE1]/80">
-            {/* FSSAI Official Badge */}
-            <div className="flex items-center space-x-2.5">
-              <span className="px-2.5 py-1 bg-[#1F2F26] border border-[#3A5243] font-bold text-white text-[11px] tracking-wider uppercase rounded shadow-xs">
-                fssai
-              </span>
-              <span className="text-[10px] font-mono text-[#C2A36C] font-semibold">
-                Food Safety Assayed · Pure A2 Dairy
-              </span>
+            {/* FSSAI Official Logo, Registration Number & Certificate */}
+            <div className="p-2.5 rounded-xl bg-[#1F2F26] border border-[#3A5243] space-y-1.5">
+              <div className="flex items-center space-x-2.5">
+                <img
+                  src="/assets/aistudio/image_7a8553d9.png"
+                  alt="FSSAI Registration Logo"
+                  className="h-8 w-auto object-contain bg-white rounded px-1.5 py-0.5 shrink-0 shadow-xs"
+                />
+                <div className="min-w-0">
+                  <span className="text-[10px] font-mono text-[#C2A36C] font-semibold block leading-tight">
+                    Food Safety Assayed · Pure A2 Dairy
+                  </span>
+                  <span className="text-[11px] font-mono font-bold text-[#FAF6EE] block mt-0.5">
+                    FSSAI Reg. No: 21426230002154
+                  </span>
+                </div>
+              </div>
+              <a
+                href="/assets/aistudio/certificate-127945312_copy_464ac32d.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-emerald-300 hover:text-emerald-200 underline font-semibold"
+              >
+                <span>View Official FSSAI Licence (Valid upto 11-11-2031)</span>
+                <span>↗</span>
+              </a>
             </div>
 
             <div>

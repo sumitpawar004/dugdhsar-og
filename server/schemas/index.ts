@@ -8,7 +8,10 @@ import { z } from 'zod';
 export const GoogleAuthSchema = z
   .object({
     idToken: z.string().min(1, 'Google ID token is required'),
+    email: z.string().email('Valid Google email is required').optional(),
+    name: z.string().min(1).max(120).optional(),
     totpCode: z.string().length(6, 'TOTP code must be 6 digits').optional(),
+    portalContext: z.enum(['customer', 'admin', 'manager', 'dealer']).optional(),
   })
   .strict();
 
@@ -112,4 +115,24 @@ export const ContactSchema = z
     message: z.string().min(5, 'Message must be at least 5 characters').max(1000),
   })
   .strict();
+
+export const VerifyDeliveryQrSchema = z
+  .object({
+    orderId: z.string().min(1, 'Order ID is required').max(120),
+    token: z.string().min(4, 'QR verification token is required').max(120),
+    deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    partnerName: z.string().min(1).max(120).optional(),
+  })
+  .strict();
+
+export const StaffSlotAssignSchema = z
+  .object({
+    role: z.enum(['admin', 'manager', 'dealer']),
+    email: z.string().email('Valid Google email is required'),
+    name: z.string().min(1).max(100).optional(),
+    replaceExisting: z.boolean().optional(),
+  })
+  .strict();
+
+
 

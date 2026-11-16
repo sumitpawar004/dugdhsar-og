@@ -134,9 +134,16 @@ export const ContactPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="mt-8 pt-6 border-t border-[#3A5243] flex items-center gap-2 text-[11px] text-[#F3EDE1]/75">
-              <span className="px-2 py-0.5 bg-[#1F2F26] border border-[#3A5243] text-white font-bold text-[10px] rounded uppercase">fssai</span>
-              <span>FSSAI Assayed Food Safety & Purity Standards.</span>
+            <div className="mt-8 pt-6 border-t border-[#3A5243] flex items-center gap-3 text-[11px] text-[#F3EDE1]/85">
+              <img
+                src="/assets/aistudio/image_7a8553d9.png"
+                alt="FSSAI Certified Logo"
+                className="h-7 w-auto object-contain bg-white rounded px-1.5 py-0.5 shrink-0"
+              />
+              <div>
+                <span className="font-semibold text-[#C2A36C] block">Food Safety Assayed · Pure A2 Dairy</span>
+                <span className="font-mono text-white text-[11px]">FSSAI Reg. No: 21426230002154</span>
+              </div>
             </div>
           </div>
 
