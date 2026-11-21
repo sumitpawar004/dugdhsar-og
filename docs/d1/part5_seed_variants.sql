@@ -1,0 +1,25 @@
+INSERT OR IGNORE INTO product_variants (
+  id, product_id, sku, size_label, unit_ml_or_g, price_paise, compare_at_price_paise,
+  stock_qty, is_subscription_eligible, is_active
+) VALUES
+  ('wm-1l', 'dug-whole-milk', 'DUG-MILK-1L', '1 Litre Glass Bottle', 1000, 17000, 19000, 150, 1, 1),
+  ('wm-500ml', 'dug-whole-milk', 'DUG-MILK-500M', '500 ml Glass Bottle', 500, 9500, 10500, 90, 1, 1),
+  ('wm-combo-2l', 'dug-whole-milk', 'DUG-MILK-2L-PK', 'Family Pack (2 x 1L Bottles)', 2000, 33000, 38000, 60, 1, 1),
+  ('sm-1l', 'dug-skimmed-milk', 'DUG-SKIM-1L', '1 Litre Glass Bottle', 1000, 11000, 12500, 85, 1, 1),
+  ('sm-500ml', 'dug-skimmed-milk', 'DUG-SKIM-500M', '500 ml Glass Bottle', 500, 6500, 7500, 50, 1, 1),
+  ('bm-1l', 'dug-buffalo-milk', 'DUG-BUF-1L', '1 Litre Glass Bottle', 1000, 19000, 21000, 120, 1, 1),
+  ('bm-500ml', 'dug-buffalo-milk', 'DUG-BUF-500M', '500 ml Glass Bottle', 500, 10500, 11500, 70, 1, 1),
+  ('bm-combo-2l', 'dug-buffalo-milk', 'DUG-BUF-2L-PK', 'Family Pack (2 x 1L Bottles)', 2000, 37000, 42000, 45, 1, 1),
+  ('bg-500ml', 'dug-bilona-ghee', 'DUG-GHEE-500M', '500 ml Heritage Glass Jar', 500, 119900, 135000, 120, 0, 1),
+  ('bg-1l', 'dug-bilona-ghee', 'DUG-GHEE-1L', '1 Litre Heritage Glass Jar', 1000, 239800, 270000, 80, 0, 1),
+  ('bg-combo-2l', 'dug-bilona-ghee', 'DUG-GHEE-2L-PK', 'Grand Pack (2 x 1L Jars)', 2000, 460000, 540000, 30, 0, 1),
+  ('mp-250g', 'dug-malai-paneer', 'DUG-PAN-250G', '250 grams Vacuum Pouch', 250, 16000, 18000, 110, 1, 1),
+  ('mp-500g', 'dug-malai-paneer', 'DUG-PAN-500G', '500 grams Vacuum Pouch', 500, 31000, 35000, 75, 1, 1),
+  ('mp-1kg', 'dug-malai-paneer', 'DUG-PAN-1KG', '1 Kilogram Master Block', 1000, 60000, 70000, 40, 1, 1),
+  ('cd-500g', 'dug-probiotic-curd', 'DUG-CURD-500G', '500g Terracotta Clay Pot', 500, 11000, 12500, 95, 1, 1),
+  ('cd-1kg', 'dug-probiotic-curd', 'DUG-CURD-1KG', '1 Kilogram Master Clay Pot', 1000, 21000, 24000, 60, 1, 1),
+  ('wb-250g', 'dug-white-butter', 'DUG-MAKH-250G', '250g Fresh Container', 250, 22000, 25000, 70, 1, 1),
+  ('wb-500g', 'dug-white-butter', 'DUG-MAKH-500G', '500g Fresh Container', 500, 42000, 48000, 45, 1, 1),
+  ('kh-250g', 'dug-vedic-khoya', 'DUG-KHOY-250G', '250g Vacuum Seal', 250, 24000, 27500, 55, 0, 1),
+  ('kh-500g', 'dug-vedic-khoya', 'DUG-KHOY-500G', '500g Vacuum Seal', 500, 46000, 52000, 40, 0, 1),
+  ('kh-1kg', 'dug-vedic-khoya', 'DUG-KHOY-1KG', '1 Kilogram Master Brick', 1000, 90000, 102000, 25, 0, 1);

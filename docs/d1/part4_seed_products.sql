@@ -1,0 +1,108 @@
+INSERT OR IGNORE INTO products (
+  id, slug, name, hindi_name, category, description, heritage_story, badge,
+  image_url, shelf_life, purity_score, is_subscription_eligible, is_active, display_order
+) VALUES
+  (
+    'dug-whole-milk',
+    'a2-desi-cow-whole-milk',
+    'DUGDHSAR Fresh A2 Desi Cow Whole Milk',
+    'शुद्ध देशी गौ दुग्ध',
+    'milk',
+    'Farm-fresh raw & gentle low-temp vat-pasteurized A2 milk from indigenous Gir cows. Bottled pure in sterile recyclable glass bottles within 3 hours of milking.',
+    'Produced exclusively from free-grazing Vedic Gir cows roaming organic pastures in Seoni district.',
+    'Morning Milking Best Seller',
+    '/assets/aistudio/image_fe6cbcdf.png',
+    '3 Days under continuous 2°C - 4°C refrigeration',
+    488, 1, 1, 1
+  ),
+  (
+    'dug-skimmed-milk',
+    'a2-light-skimmed-milk',
+    'DUGDHSAR Fresh A2 Light Skimmed Milk',
+    'देशी गौ टोंड दुग्ध',
+    'milk',
+    'Light, crisp, and easily digestible A2 milk with natural fats gently separated through physical centrifugal spin without any chemical thickeners.',
+    'Ideal for weight management, morning tea, and individuals seeking low-fat A2 dairy.',
+    'Low Calorie & Heart Friendly',
+    '/assets/aistudio/image_fe6cbcdf.png',
+    '3 Days under 2°C - 4°C refrigeration',
+    492, 1, 1, 2
+  ),
+  (
+    'dug-buffalo-milk',
+    'pure-desi-buffalo-milk',
+    'DUGDHSAR Pure Desi Murrah Buffalo Whole Milk',
+    'शुद्ध देशी मुर्राह भैंस का ताज़ा दूध',
+    'milk',
+    'Farm-fresh unadulterated pure Murrah buffalo whole milk delivered in sterilized glass bottles. Naturally thick with rich clotted malai and high calcium.',
+    'Sourced from free-ranging indigenous Murrah buffaloes raised with green fodder and ethical care in Seoni.',
+    'Rich & Creamy 7.5% Fat',
+    '/assets/aistudio/image_fe6cbcdf.png',
+    '3 Days under continuous 2°C - 4°C refrigeration',
+    494, 1, 1, 3
+  ),
+  (
+    'dug-bilona-ghee',
+    'vedic-bilona-cow-ghee',
+    'DUGDHSAR Vedic Traditional Bilona Cow Ghee',
+    'वैदिक बिलोना देशी गौ घृत',
+    'ghee',
+    'Handcrafted following ancient 5-stage Vedic Vidhi: whole A2 milk boiled on slow fire, set into curd, hand-churned in wooden bilona to yield Makhan, then simmered into golden danedar ghee.',
+    'Rich in golden beta-carotene from indigenous Gir cow grass feeding, with authentic nutty aroma and granular texture.',
+    'Curd-Churned Vedic Bilona',
+    '/assets/aistudio/1000095624-clean_337007be.png',
+    '12 Months at room temperature in airtight glass jar',
+    497, 0, 1, 4
+  ),
+  (
+    'dug-malai-paneer',
+    'a2-malai-cottage-cheese-paneer',
+    'DUGDHSAR Fresh A2 Malai Cottage Cheese (Paneer)',
+    'शुद्ध देशी मलाई पनीर',
+    'paneer',
+    'Ultra-soft, velvety fresh paneer made by naturally curdling morning Gir cow milk with pure lemon extract and whey. Squeezed gently in clean muslin cloth without starch or additives.',
+    'Prepared in limited small batches every dawn so every cube stays pillowy soft.',
+    'Soft & Melt-In-Mouth',
+    '/assets/aistudio/1000095664-clean_2425f7fb.png',
+    '4 Days under 2°C - 4°C refrigeration in brine water',
+    494, 1, 1, 5
+  ),
+  (
+    'dug-probiotic-curd',
+    'clay-pot-natural-vedic-dahi-curd',
+    'DUGDHSAR Clay-Pot Natural Vedic Dahi (Curd)',
+    'पारंपरिक मटका दही',
+    'curd',
+    'Thick, luscious dahi set slowly in unglazed terracotta clay pots that naturally breathe and absorb excess whey. Cultured using heirloom indigenous starter curd rich in live probiotics.',
+    'Earthen pot setting imparts a gentle earthy fragrance and naturally sweet thickness.',
+    'Traditional Clay Matka Set',
+    '/assets/aistudio/1000095624-clean_337007be.png',
+    '5 Days under 4°C refrigeration',
+    496, 1, 1, 6
+  ),
+  (
+    'dug-white-butter',
+    'vedic-cultured-white-butter-makhan',
+    'DUGDHSAR Vedic Cultured White Butter (Makhan)',
+    'ताज़ा सफेद मक्खन',
+    'butter',
+    'Fresh unsalted white butter churned gently every morning from cultured A2 malai. Creamy, cooling, and packed with delicate natural pasture aroma.',
+    'Traditional hand-churned unsalted white makhan with zero artificial yellow dyes.',
+    'Hand-Churned Makhan',
+    '/assets/aistudio/1000095664-clean_2425f7fb.png',
+    '10 Days refrigerated, 30 days frozen',
+    493, 1, 1, 7
+  ),
+  (
+    'dug-vedic-khoya',
+    'pure-vedic-a2-danedar-khoya-mawa',
+    'DUGDHSAR Pure Vedic A2 Danedar Khoya (Mawa)',
+    'शुद्ध देशी गौ खोया मावा',
+    'khoya-mawa',
+    'Authentic A2 Gir cow milk khoya made by continuous slow evaporation of pure whole milk in heavy iron kadhais. Free from synthetic fat, starch, or bleaching agents.',
+    'Essential for sacred festival sweets, gujiyas, pedas, and gulab jamuns.',
+    'Slow Iron-Kadhai Simmered',
+    '/assets/aistudio/1000095665-clean_9f8d49b7.png',
+    '7 Days refrigerated at 2°C - 4°C, 30 days frozen',
+    497, 0, 1, 8
+  );

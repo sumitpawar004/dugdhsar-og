@@ -4,16 +4,23 @@
 - **Database Name:** `dugdhsar-prod`
 - **Worker Binding:** `DB`
 - **Migrations Folder:** `/migrations` (`0001_init.sql`, `0002_seed_products.sql`)
-- **Cloudflare D1 Console Paste File:** `docs/d1-console-setup.sql`
+- **Cloudflare D1 Console Split Files (Comment-Free, Single-Line Safe):**
+  1. `docs/d1/part1_core_tables.sql`
+  2. `docs/d1/part2_subscriptions_orders.sql`
+  3. `docs/d1/part3_payments_and_rest.sql`
+  4. `docs/d1/part4_seed_products.sql`
+  5. `docs/d1/part5_seed_variants.sql`
+  6. `docs/d1/part6_seed_plans_settings.sql`
+- **Combined Script:** `docs/d1-console-setup.sql` (comment-free, no PRAGMA)
 
 ---
 
 ## 1. Quick Setup (Cloudflare D1 Console — Bina Terminal Ke)
 
 1. Cloudflare Dashboard kholein → **Storage & Databases → D1 SQL Database**.
-2. **`dugdhsar-prod`** database select karein (agar nahi bana hai toh create karein aur Worker Settings me binding name **`DB`** set karein).
+2. **`dugdhsar-prod`** database select karein (binding name **`DB`**).
 3. **Console** tab kholein.
-4. `docs/d1-console-setup.sql` ka poora content copy karke paste karein aur **Execute** dabayein.
+4. `docs/d1/` ki 6 files ko order me (`part1` → `part6`) ek-ek karke copy-paste aur **Execute** karein. (Zero comments & zero PRAGMA hain, toh line breaks hatne par bhi 100% cleanly chalegi.)
 5. Verify karne ke liye Console me run karein:
    ```sql
    SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name;

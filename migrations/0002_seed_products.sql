@@ -1,15 +1,3 @@
--- ============================================================================
--- DUGDHSAR Product Catalog & Default Subscription Plans — Migration 0002
--- Strictly catalog, default plans, and default site settings ONLY.
--- ZERO fake users, ZERO fake customers, ZERO fake orders, ZERO fake reviews.
--- Idempotent: Uses INSERT OR IGNORE so re-running is always safe.
--- ============================================================================
-
-PRAGMA foreign_keys = ON;
-
--- ----------------------------------------------------------------------------
--- 1. PRODUCTS (6 Approved Categories: milk, ghee, paneer, curd, butter, khoya-mawa)
--- ----------------------------------------------------------------------------
 INSERT OR IGNORE INTO products (
   id, slug, name, hindi_name, category, description, heritage_story, badge,
   image_url, shelf_life, purity_score, is_subscription_eligible, is_active, display_order
@@ -119,46 +107,32 @@ INSERT OR IGNORE INTO products (
     497, 0, 1, 8
   );
 
--- ----------------------------------------------------------------------------
--- 2. PRODUCT VARIANTS (Prices in INTEGER paise)
--- ----------------------------------------------------------------------------
 INSERT OR IGNORE INTO product_variants (
   id, product_id, sku, size_label, unit_ml_or_g, price_paise, compare_at_price_paise,
   stock_qty, is_subscription_eligible, is_active
 ) VALUES
-  -- Gir Cow Whole Milk
   ('wm-1l', 'dug-whole-milk', 'DUG-MILK-1L', '1 Litre Glass Bottle', 1000, 17000, 19000, 150, 1, 1),
   ('wm-500ml', 'dug-whole-milk', 'DUG-MILK-500M', '500 ml Glass Bottle', 500, 9500, 10500, 90, 1, 1),
   ('wm-combo-2l', 'dug-whole-milk', 'DUG-MILK-2L-PK', 'Family Pack (2 x 1L Bottles)', 2000, 33000, 38000, 60, 1, 1),
-  -- Skimmed Milk
   ('sm-1l', 'dug-skimmed-milk', 'DUG-SKIM-1L', '1 Litre Glass Bottle', 1000, 11000, 12500, 85, 1, 1),
   ('sm-500ml', 'dug-skimmed-milk', 'DUG-SKIM-500M', '500 ml Glass Bottle', 500, 6500, 7500, 50, 1, 1),
-  -- Murrah Buffalo Milk
   ('bm-1l', 'dug-buffalo-milk', 'DUG-BUF-1L', '1 Litre Glass Bottle', 1000, 19000, 21000, 120, 1, 1),
   ('bm-500ml', 'dug-buffalo-milk', 'DUG-BUF-500M', '500 ml Glass Bottle', 500, 10500, 11500, 70, 1, 1),
   ('bm-combo-2l', 'dug-buffalo-milk', 'DUG-BUF-2L-PK', 'Family Pack (2 x 1L Bottles)', 2000, 37000, 42000, 45, 1, 1),
-  -- Vedic Bilona Ghee
   ('bg-500ml', 'dug-bilona-ghee', 'DUG-GHEE-500M', '500 ml Heritage Glass Jar', 500, 119900, 135000, 120, 0, 1),
   ('bg-1l', 'dug-bilona-ghee', 'DUG-GHEE-1L', '1 Litre Heritage Glass Jar', 1000, 239800, 270000, 80, 0, 1),
   ('bg-combo-2l', 'dug-bilona-ghee', 'DUG-GHEE-2L-PK', 'Grand Pack (2 x 1L Jars)', 2000, 460000, 540000, 30, 0, 1),
-  -- Malai Paneer
   ('mp-250g', 'dug-malai-paneer', 'DUG-PAN-250G', '250 grams Vacuum Pouch', 250, 16000, 18000, 110, 1, 1),
   ('mp-500g', 'dug-malai-paneer', 'DUG-PAN-500G', '500 grams Vacuum Pouch', 500, 31000, 35000, 75, 1, 1),
   ('mp-1kg', 'dug-malai-paneer', 'DUG-PAN-1KG', '1 Kilogram Master Block', 1000, 60000, 70000, 40, 1, 1),
-  -- Clay-Pot Curd
   ('cd-500g', 'dug-probiotic-curd', 'DUG-CURD-500G', '500g Terracotta Clay Pot', 500, 11000, 12500, 95, 1, 1),
   ('cd-1kg', 'dug-probiotic-curd', 'DUG-CURD-1KG', '1 Kilogram Master Clay Pot', 1000, 21000, 24000, 60, 1, 1),
-  -- White Butter (Makhan)
   ('wb-250g', 'dug-white-butter', 'DUG-MAKH-250G', '250g Fresh Container', 250, 22000, 25000, 70, 1, 1),
   ('wb-500g', 'dug-white-butter', 'DUG-MAKH-500G', '500g Fresh Container', 500, 42000, 48000, 45, 1, 1),
-  -- Danedar Khoya (Mawa)
   ('kh-250g', 'dug-vedic-khoya', 'DUG-KHOY-250G', '250g Vacuum Seal', 250, 24000, 27500, 55, 0, 1),
   ('kh-500g', 'dug-vedic-khoya', 'DUG-KHOY-500G', '500g Vacuum Seal', 500, 46000, 52000, 40, 0, 1),
   ('kh-1kg', 'dug-vedic-khoya', 'DUG-KHOY-1KG', '1 Kilogram Master Brick', 1000, 90000, 102000, 25, 0, 1);
 
--- ----------------------------------------------------------------------------
--- 3. DEFAULT SUBSCRIPTION PLANS (Admin/Manager Editable in D1)
--- ----------------------------------------------------------------------------
 INSERT OR IGNORE INTO plans (
   id, code, name, product_id, variant_id, milk_type, frequency, price_paise, billing_cycle, is_active
 ) VALUES
@@ -171,9 +145,6 @@ INSERT OR IGNORE INTO plans (
   ('plan-buf-alt-1l', 'BUF_ALT_1L', 'Murrah Buffalo Milk — Alternate Days 1L (Monthly Prepaid)', 'dug-buffalo-milk', 'bm-1l', 'buffalo', 'alternate_days', 19000, 'prepaid_monthly', 1),
   ('plan-skim-daily-1l', 'SKIM_DAILY_1L', 'A2 Light Skimmed Milk — Daily 1L (Monthly Prepaid)', 'dug-skimmed-milk', 'sm-1l', 'skimmed', 'daily', 11000, 'prepaid_monthly', 1);
 
--- ----------------------------------------------------------------------------
--- 4. DEFAULT SITE SETTINGS (Delivery Zones, Slots & Store Banner Config)
--- ----------------------------------------------------------------------------
 INSERT OR IGNORE INTO site_settings (key, value_json) VALUES
   (
     'delivery_zones',

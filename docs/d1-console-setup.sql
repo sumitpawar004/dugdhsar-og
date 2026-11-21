@@ -1,24 +1,3 @@
--- ============================================================================
--- DUGDHSAR — Cloudflare D1 Console All-In-One Idempotent Setup Script
--- ============================================================================
--- HOW TO USE (No Terminal Needed):
---   1. Open Cloudflare Dashboard -> Workers & Pages -> D1 SQL Database
---   2. Select database: dugdhsar-prod (binding: DB)
---   3. Open the "Console" tab
---   4. Copy & paste this ENTIRE file and click "Execute"
---
--- Safe to re-run multiple times: uses CREATE TABLE IF NOT EXISTS,
--- CREATE INDEX IF NOT EXISTS, and INSERT OR IGNORE everywhere.
--- Combines: migrations/0001_init.sql + migrations/0002_seed_products.sql
--- ============================================================================
-
-PRAGMA foreign_keys = ON;
-
--- ============================================================================
--- PART 1: SCHEMA (migrations/0001_init.sql)
--- ============================================================================
-
--- 1. users
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   google_sub TEXT UNIQUE,
@@ -38,7 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
   deleted_at TEXT
 );
 
--- 2. dealers
 CREATE TABLE IF NOT EXISTS dealers (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
@@ -48,7 +26,6 @@ CREATE TABLE IF NOT EXISTS dealers (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
--- 3. dealer_pincodes
 CREATE TABLE IF NOT EXISTS dealer_pincodes (
   dealer_id TEXT NOT NULL REFERENCES dealers(id) ON DELETE CASCADE,
   pincode TEXT NOT NULL CHECK (pincode GLOB '[0-9][0-9][0-9][0-9][0-9][0-9]'),
@@ -57,7 +34,6 @@ CREATE TABLE IF NOT EXISTS dealer_pincodes (
 );
 CREATE INDEX IF NOT EXISTS idx_dealer_pincodes_pincode ON dealer_pincodes(pincode);
 
--- 4. dealer_customers
 CREATE TABLE IF NOT EXISTS dealer_customers (
   id TEXT PRIMARY KEY,
   dealer_id TEXT NOT NULL REFERENCES dealers(id) ON DELETE CASCADE,
@@ -67,7 +43,6 @@ CREATE TABLE IF NOT EXISTS dealer_customers (
 );
 CREATE INDEX IF NOT EXISTS idx_dealer_customers_dealer ON dealer_customers(dealer_id);
 
--- 5. addresses
 CREATE TABLE IF NOT EXISTS addresses (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -93,7 +68,6 @@ CREATE TABLE IF NOT EXISTS addresses (
 );
 CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id) WHERE deleted_at IS NULL;
 
--- 6. products
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
   slug TEXT NOT NULL UNIQUE,
@@ -115,7 +89,6 @@ CREATE TABLE IF NOT EXISTS products (
 );
 CREATE INDEX IF NOT EXISTS idx_products_cat_active ON products(category, is_active, display_order);
 
--- 7. product_variants
 CREATE TABLE IF NOT EXISTS product_variants (
   id TEXT PRIMARY KEY,
   product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -132,7 +105,6 @@ CREATE TABLE IF NOT EXISTS product_variants (
 );
 CREATE INDEX IF NOT EXISTS idx_variants_product ON product_variants(product_id, is_active);
 
--- 8. plans
 CREATE TABLE IF NOT EXISTS plans (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
@@ -151,7 +123,6 @@ CREATE TABLE IF NOT EXISTS plans (
 );
 CREATE INDEX IF NOT EXISTS idx_plans_active ON plans(is_active, milk_type);
 
--- 9. subscriptions
 CREATE TABLE IF NOT EXISTS subscriptions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -182,7 +153,6 @@ CREATE INDEX IF NOT EXISTS idx_subs_user_status ON subscriptions(user_id, status
 CREATE INDEX IF NOT EXISTS idx_subs_dealer_status ON subscriptions(dealer_id, status);
 CREATE INDEX IF NOT EXISTS idx_subs_next_delivery ON subscriptions(status, next_delivery_date);
 
--- 10. subscription_pauses
 CREATE TABLE IF NOT EXISTS subscription_pauses (
   id TEXT PRIMARY KEY,
   subscription_id TEXT NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
@@ -193,7 +163,6 @@ CREATE TABLE IF NOT EXISTS subscription_pauses (
   UNIQUE (subscription_id, skip_date)
 );
 
--- 11. subscription_invoices
 CREATE TABLE IF NOT EXISTS subscription_invoices (
   id TEXT PRIMARY KEY,
   invoice_number TEXT NOT NULL UNIQUE,
@@ -213,7 +182,6 @@ CREATE TABLE IF NOT EXISTS subscription_invoices (
 );
 CREATE INDEX IF NOT EXISTS idx_sub_invoices_user_status ON subscription_invoices(user_id, status);
 
--- 12. coupons
 CREATE TABLE IF NOT EXISTS coupons (
   id TEXT PRIMARY KEY,
   code TEXT NOT NULL UNIQUE CHECK (code = upper(code)),
@@ -231,7 +199,6 @@ CREATE TABLE IF NOT EXISTS coupons (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
--- 13. orders
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   order_number TEXT NOT NULL UNIQUE,
@@ -273,7 +240,6 @@ CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders(user_id, created_at
 CREATE INDEX IF NOT EXISTS idx_orders_dealer_date ON orders(dealer_id, delivery_date, status);
 CREATE INDEX IF NOT EXISTS idx_orders_status_date ON orders(status, delivery_date);
 
--- 14. order_items
 CREATE TABLE IF NOT EXISTS order_items (
   id TEXT PRIMARY KEY,
   order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -287,7 +253,6 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 
--- 15. coupon_redemptions
 CREATE TABLE IF NOT EXISTS coupon_redemptions (
   id TEXT PRIMARY KEY,
   coupon_id TEXT NOT NULL REFERENCES coupons(id) ON DELETE RESTRICT,
@@ -298,7 +263,6 @@ CREATE TABLE IF NOT EXISTS coupon_redemptions (
 );
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_user ON coupon_redemptions(coupon_id, user_id);
 
--- 16. payments
 CREATE TABLE IF NOT EXISTS payments (
   id TEXT PRIMARY KEY,
   order_id TEXT REFERENCES orders(id) ON DELETE RESTRICT,
@@ -325,7 +289,6 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id, status) WHERE order_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payments_sub ON payments(subscription_id, status) WHERE subscription_id IS NOT NULL;
 
--- 17. webhook_events
 CREATE TABLE IF NOT EXISTS webhook_events (
   event_id TEXT PRIMARY KEY,
   provider TEXT NOT NULL CHECK (provider IN ('razorpay')),
@@ -334,7 +297,6 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   processed_at TEXT
 );
 
--- 18. reviews
 CREATE TABLE IF NOT EXISTS reviews (
   id TEXT PRIMARY KEY,
   product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -351,7 +313,6 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 CREATE INDEX IF NOT EXISTS idx_reviews_product_status ON reviews(product_id, status, created_at DESC);
 
--- 19. enquiries
 CREATE TABLE IF NOT EXISTS enquiries (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -370,7 +331,6 @@ CREATE TABLE IF NOT EXISTS enquiries (
 );
 CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status, created_at DESC);
 
--- 20. audit_logs
 CREATE TABLE IF NOT EXISTS audit_logs (
   id TEXT PRIMARY KEY,
   actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
@@ -385,7 +345,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at DESC);
 
--- 21. idempotency_keys
 CREATE TABLE IF NOT EXISTS idempotency_keys (
   key TEXT PRIMARY KEY,
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
@@ -397,7 +356,6 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   expires_at TEXT NOT NULL
 );
 
--- 22. revoked_sessions
 CREATE TABLE IF NOT EXISTS revoked_sessions (
   jti TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -406,18 +364,12 @@ CREATE TABLE IF NOT EXISTS revoked_sessions (
   expires_at TEXT NOT NULL
 );
 
--- 23. site_settings
 CREATE TABLE IF NOT EXISTS site_settings (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
   updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
-
--- ============================================================================
--- PART 2: SEED DATA (migrations/0002_seed_products.sql)
--- Catalog, default plans & default site settings ONLY (NO fake user data)
--- ============================================================================
 
 INSERT OR IGNORE INTO products (
   id, slug, name, hindi_name, category, description, heritage_story, badge,
