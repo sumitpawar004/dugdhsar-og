@@ -13,7 +13,9 @@
     "run_worker_first": ["/api/*"]
   },
   "kv_namespaces": [
-     "d1_databases": [
+    { "binding": "CACHE", "id": "a9e69a8872f34c1988a280944998fc3f" }
+  ],
+  "d1_databases": [
     {
       "binding": "DB",
       "database_name": "dugdhsar-prod",
@@ -21,12 +23,10 @@
       "migrations_dir": "migrations"
     }
   ],
-    { "binding": "CACHE", "id": "a9e69a8872f34c1988a280944998fc3f" }
-  ],
   "triggers": { "crons": ["0 3 * * *"] },
   "observability": { "enabled": true },
   "vars": {
     "ENVIRONMENT": "production",
-    "APP_URL": "https://dugdhsar.xxxx.workers.dev"
+    "APP_URL": "https://dugdhsar-og.sumitpawar65005.workers.dev"
   }
 }
