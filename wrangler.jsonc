@@ -13,6 +13,14 @@
     "run_worker_first": ["/api/*"]
   },
   "kv_namespaces": [
+     "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dugdhsar-prod",
+      "database_id": "ecc63e98-7b25-45cf-a1d6-cd7196ae4558",
+      "migrations_dir": "migrations"
+    }
+  ],
     { "binding": "CACHE", "id": "a9e69a8872f34c1988a280944998fc3f" }
   ],
   "triggers": { "crons": ["0 3 * * *"] },
