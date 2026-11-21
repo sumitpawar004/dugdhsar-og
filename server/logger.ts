@@ -16,8 +16,12 @@ export function redactPii(value: any): any {
     // 1. Redact Authorization / Bearer tokens
     sanitized = sanitized.replace(/Bearer\s+([a-zA-Z0-9_\-\.]+)/gi, 'Bearer [REDACTED_TOKEN]');
 
-    // 2. Redact Instagram / Meta Access Tokens (EAA...)
-    sanitized = sanitized.replace(/EAA[a-zA-Z0-9]+/g, 'EAA[REDACTED_TOKEN]');
+    // 1b. Redact raw JWTs (three base64url segments starting with eyJ)
+    sanitized = sanitized.replace(/eyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}/g, '[REDACTED_JWT]');
+
+    // 2. Redact Instagram / Meta / Google secret tokens
+    sanitized = sanitized.replace(/(EAA|IGAA|IGQV|GOCSPX-)[a-zA-Z0-9_\-]+/g, '$1[REDACTED_TOKEN]');
+    sanitized = sanitized.replace(/(access_token|refresh_token|client_secret|password)=[^&\s"']+/gi, '$1=[REDACTED]');
 
     // 3. Redact Indian Mobile Numbers (+91 or 10-digit formats)
     sanitized = sanitized.replace(

@@ -13,6 +13,7 @@ import App from '../src/App';
 import { PUBLIC_ROUTES_META, RouteMeta } from '../src/content';
 import { siteConfig } from '../src/config/site';
 import { generateSchemaGraph, safeJsonLdString } from '../src/lib/seo';
+import { buildCloudflareHeadersFile } from '../server/config/csp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -285,66 +286,9 @@ Sitemap: ${siteConfig.url}/sitemap.xml
   fs.writeFileSync(path.join(distDir, '_redirects'), redirects, 'utf-8');
   console.log('  ✓ Generated: dist/_redirects');
 
-  // 7. Generate Cloudflare Security & Caching Headers (dist/_headers)
+  // 7. Generate Cloudflare Security & Caching Headers (dist/_headers) from single source of truth
   console.log('🛡️ [Prerender] Generating Cloudflare Edge Headers (dist/_headers)...');
-  const headers = `# Cloudflare Edge Security & Caching Headers
-# Strict Content-Security-Policy, HSTS, Permissions Policy & Edge Caching
-
-# Global security headers for all HTML and text responses
-/*
-  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-  X-Content-Type-Options: nosniff
-  X-Frame-Options: SAMEORIGIN
-  Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: accelerometer=(), camera=(), geolocation=(self), gyroscope=(), magnetometer=(), microphone=(), payment=(self), usb=()
-  Cross-Origin-Opener-Policy: same-origin-allow-popups
-  Cross-Origin-Resource-Policy: same-origin
-  Content-Security-Policy: default-src 'self' https://dugdhsar.in; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://accounts.google.com https://challenges.cloudflare.com https://checkout.razorpay.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://images.unsplash.com https://lh3.googleusercontent.com https://*.cdninstagram.com https://*.fbcdn.net https://scontent*.cdninstagram.com; connect-src 'self' https://accounts.google.com https://challenges.cloudflare.com https://api.razorpay.com https://lumberjack.razorpay.com https://sheets.googleapis.com https://graph.instagram.com; frame-src 'self' https://accounts.google.com https://challenges.cloudflare.com https://api.razorpay.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';
-
-# Immutable long-term caching for hashed static assets
-/assets/*
-  Cache-Control: public, max-age=31536000, immutable
-  X-Content-Type-Options: nosniff
-  Cross-Origin-Resource-Policy: cross-origin
-
-# Short-term cache with mandatory revalidation for static HTML pages
-/*.html
-  Cache-Control: public, max-age=0, must-revalidate
-
-/
-  Cache-Control: public, max-age=0, must-revalidate
-
-# Block indexing on private portal paths
-/admin/*
-  X-Robots-Tag: noindex, nofollow, noarchive
-  Cache-Control: private, no-cache, no-store, must-revalidate
-
-/dealer/*
-  X-Robots-Tag: noindex, nofollow, noarchive
-  Cache-Control: private, no-cache, no-store, must-revalidate
-
-/manager/*
-  X-Robots-Tag: noindex, nofollow, noarchive
-  Cache-Control: private, no-cache, no-store, must-revalidate
-
-/account/*
-  X-Robots-Tag: noindex, nofollow, noarchive
-  Cache-Control: private, no-cache, no-store, must-revalidate
-
-/checkout/*
-  X-Robots-Tag: noindex, nofollow, noarchive
-  Cache-Control: private, no-cache, no-store, must-revalidate
-
-/cart/*
-  X-Robots-Tag: noindex, nofollow, noarchive
-  Cache-Control: private, no-cache, no-store, must-revalidate
-
-/api/*
-  X-Robots-Tag: noindex, nofollow
-  Access-Control-Allow-Origin: *
-  Access-Control-Allow-Methods: GET, POST, OPTIONS
-  Access-Control-Allow-Headers: Content-Type, Authorization, X-Request-Id
-`;
+  const headers = buildCloudflareHeadersFile();
   fs.writeFileSync(path.join(distDir, '_headers'), headers, 'utf-8');
   console.log('  ✓ Generated: dist/_headers');
 

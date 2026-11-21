@@ -39,6 +39,7 @@ export interface InstagramFeedResponse {
   profile: InstagramProfile;
   media: InstagramMediaItem[];
   updatedAt: string;
+  source?: 'live' | 'cache' | 'fallback';
 }
 
 const AnimatedNumber: React.FC<{ value: number }> = ({ value }) => {
@@ -73,7 +74,8 @@ export const InstagramFeed: React.FC = () => {
 
     try {
       // Relative URL /api/instagram/feed for zero-CORS Cloudflare Worker deployment
-      const res = await fetch('/api/instagram/feed');
+      const endpoint = isManualRefresh ? '/api/instagram/feed?refresh=1' : '/api/instagram/feed';
+      const res = await fetch(endpoint);
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: Failed to fetch feed`);
       }
@@ -156,6 +158,21 @@ export const InstagramFeed: React.FC = () => {
   });
 
   const profile = feed?.profile;
+  const igHandle = profile?.username || 'dugdhsar.in';
+  const igProfileUrl = `https://www.instagram.com/${igHandle}/`;
+  const isLiveConnected = feed?.source === 'live' || feed?.source === 'cache';
+
+  const getCardPreviewImage = (post: InstagramMediaItem): string => {
+    if (post.media_type === 'VIDEO') {
+      return post.thumbnail_url || '/assets/vedic_gir_cow_meadow.jpg';
+    }
+    return post.media_url || post.thumbnail_url || '/assets/vedic_gir_cow_meadow.jpg';
+  };
+
+  const isPlayableVideoUrl = (post: InstagramMediaItem): boolean => {
+    if (post.media_type !== 'VIDEO' || !post.media_url) return false;
+    return !/\.(jpg|jpeg|png|webp)(\?|$)/i.test(post.media_url) && !post.media_url.includes('images.unsplash.com');
+  };
 
   return (
     <section id="instagram-feed" className="py-14 sm:py-20 bg-[#F8F4EC] relative overflow-hidden border-t border-[#D8C9AD]">
@@ -172,11 +189,11 @@ export const InstagramFeed: React.FC = () => {
             {/* Left: Avatar + Profile Info */}
             <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
               <a 
-                href="https://www.instagram.com/dugdhsar.in/" 
+                href={igProfileUrl} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="relative p-1 rounded-full bg-gradient-to-tr from-[#A87520] via-[#A34F37] to-[#124A86] shrink-0 shadow-md transition-transform hover:scale-105"
-                title="View @dugdhsar.in on Instagram"
+                title={`View @${igHandle} on Instagram`}
               >
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white p-1 overflow-hidden flex items-center justify-center">
                   <img 
@@ -229,13 +246,13 @@ export const InstagramFeed: React.FC = () => {
             {/* Right: Actions */}
             <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
               <a
-                href="https://www.instagram.com/dugdhsar.in/"
+                href={igProfileUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto px-5 py-2.5 bg-gradient-to-r from-[#124A86] to-[#0D3663] hover:from-[#0D3663] hover:to-[#092645] text-white rounded-xl text-xs font-bold tracking-wider uppercase flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
               >
                 <Instagram className="w-4 h-4" />
-                <span>Follow @dugdhsar.in</span>
+                <span>Follow @{igHandle}</span>
                 <ExternalLink className="w-3 h-3 opacity-80" />
               </a>
 
@@ -255,13 +272,15 @@ export const InstagramFeed: React.FC = () => {
           {/* Sync Status Banner */}
           <div className="mt-4 pt-3 border-t border-[#D8C9AD]/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#302C26]/75">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-              <span className="font-semibold text-emerald-900">
-                Connected to Instagram Stream · @dugdhsar.in
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className={`font-semibold ${isLiveConnected ? 'text-emerald-900' : 'text-amber-900'}`}>
+                {isLiveConnected
+                  ? `Live Instagram Stream · @${igHandle}`
+                  : `Featured Gaushala Gallery · @${igHandle}`}
               </span>
             </div>
             <span className="text-[10px] text-[#302C26]/60">
-              Auto-stream active · 60s background sync
+              {isLiveConnected ? 'Live Meta Graph API · 2-min KV cache' : 'Tap Sync Feed after connecting IG token'}
             </span>
           </div>
         </div>
@@ -361,7 +380,7 @@ export const InstagramFeed: React.FC = () => {
                 className="group relative bg-[#FAF6EE] rounded-2xl overflow-hidden border border-[#D8C9AD] aspect-square flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1 block shadow-xs cursor-pointer"
               >
                 <img
-                  src={post.media_url || post.thumbnail_url}
+                  src={getCardPreviewImage(post)}
                   alt={post.caption || 'Dugdhsar Instagram Post'}
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).src = '/assets/vedic_gir_cow_meadow.jpg';
@@ -391,7 +410,7 @@ export const InstagramFeed: React.FC = () => {
                 {/* Hover / Tap Overlay */}
                 <div className="absolute inset-0 bg-[#263D30]/92 text-[#FAF6EE] p-3 sm:p-4 flex flex-col justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20">
                   <div className="flex items-center justify-between text-[10px] text-[#C2A36C] font-bold">
-                    <span>@dugdhsar.in</span>
+                    <span>@{igHandle}</span>
                     <span className="text-[9px] text-[#FAF6EE]/70 font-normal">{formatTimestamp(post.timestamp)}</span>
                   </div>
 
@@ -428,13 +447,13 @@ export const InstagramFeed: React.FC = () => {
         {/* Bottom CTA to Instagram Profile */}
         <div className="mt-10 text-center flex flex-col sm:flex-row items-center justify-center gap-3">
           <a
-            href="https://www.instagram.com/dugdhsar.in/"
+            href={igProfileUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 bg-[#FAF6EE] hover:bg-[#F3EDE1] text-[#263D30] border-2 border-[#D8C9AD] hover:border-[#263D30] rounded-2xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer"
           >
             <Instagram className="w-4 h-4 text-[#A34F37]" />
-            <span>Open Official @dugdhsar.in on Instagram</span>
+            <span>Open Official @{igHandle} on Instagram</span>
             <ExternalLink className="w-3.5 h-3.5 text-[#C2A36C]" />
           </a>
         </div>
@@ -460,17 +479,32 @@ export const InstagramFeed: React.FC = () => {
             >
               {/* Media Preview */}
               <div className="relative bg-black md:w-1/2 flex items-center justify-center min-h-[280px]">
-                <img 
-                  src={selectedPost.media_url || selectedPost.thumbnail_url} 
-                  alt={selectedPost.caption || 'Post Preview'}
-                  className="w-full h-full object-contain max-h-[70vh]"
-                />
-                {selectedPost.media_type === 'VIDEO' && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs">
-                      <Play className="w-6 h-6 fill-white ml-1" />
-                    </div>
-                  </div>
+                {isPlayableVideoUrl(selectedPost) ? (
+                  <video
+                    src={selectedPost.media_url}
+                    poster={selectedPost.thumbnail_url || '/assets/vedic_gir_cow_meadow.jpg'}
+                    controls
+                    playsInline
+                    className="w-full h-full object-contain max-h-[70vh]"
+                  />
+                ) : (
+                  <>
+                    <img
+                      src={getCardPreviewImage(selectedPost)}
+                      alt={selectedPost.caption || 'Post Preview'}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/assets/vedic_gir_cow_meadow.jpg';
+                      }}
+                      className="w-full h-full object-contain max-h-[70vh]"
+                    />
+                    {selectedPost.media_type === 'VIDEO' && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-14 h-14 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-xs">
+                          <Play className="w-6 h-6 fill-white ml-1" />
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -481,14 +515,14 @@ export const InstagramFeed: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-white p-0.5 border border-[#D8C9AD] overflow-hidden">
                         <img 
-                          src="/assets/aistudio/1000095715-clean_c92aa3a9.png" 
+                          src={profile?.profile_picture_url || '/assets/aistudio/1000095715-clean_c92aa3a9.png'} 
                           alt="Dugdhsar Profile" 
                           className="w-full h-full object-contain"
                         />
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-sm text-[#263D30]">
-                          <span>dugdhsar.in</span>
+                          <span>{igHandle}</span>
                           <CheckCircle2 className="w-3.5 h-3.5 text-[#124A86] fill-[#124A86] text-white" />
                         </div>
                         <span className="text-[11px] text-[#302C26]/70">Dugdhsar Vedic Dairy · Seoni, MP</span>

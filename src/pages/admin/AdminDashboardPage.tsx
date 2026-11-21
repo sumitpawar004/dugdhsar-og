@@ -214,7 +214,7 @@ export const AdminDashboardPage: React.FC = () => {
       const key = (s.customerEmail || s.userId || s.id).toLowerCase();
       map.set(key, {
         id: s.userId || s.id,
-        name: s.customerName,
+        name: s.customerName || 'Patron',
         phone: s.customerPhone || 'N/A',
         locality: s.deliveryAddress || 'Seoni, MP',
         subActive: s.status === 'active',

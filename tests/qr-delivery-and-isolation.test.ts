@@ -117,6 +117,7 @@ describe('Doorstep QR Verification Backend API (/api/deliveries/verify-qr)', () 
 
   after(async () => {
     if (server) {
+      server.closeAllConnections?.();
       await new Promise<void>((resolve) => server!.close(() => resolve()));
       server = null;
     }
@@ -299,6 +300,7 @@ describe('Strict Maximum 3 Enterprise Accounts (Admin Console, Manager Operation
   after(async () => {
     resetStaffRegistryForTests();
     if (server) {
+      server.closeAllConnections?.();
       await new Promise<void>((resolve) => server!.close(() => resolve()));
       server = null;
     }
@@ -543,5 +545,235 @@ describe('FSSAI Licence & Logo Verification', () => {
     assert.ok(pressSrc.includes('/assets/aistudio/image_7a8553d9.png'));
   });
 });
+
+describe('Cloudflare Workers Auth & Real Instagram Connection Verification', () => {
+  let prodServer: Server | null = null;
+  let prodBaseUrl = '';
+
+  const ensureProdServer = async () => {
+    if (prodServer) return prodBaseUrl;
+    const prodApp = createApp({
+      ENVIRONMENT: 'production',
+      GOOGLE_CLIENT_ID: '1234567890-testclient.apps.googleusercontent.com',
+      JWT_SECRET: 'super_secure_cloudflare_jwt_secret_key_for_tests_32bytes',
+      IG_ACCESS_TOKEN: 'EAA_FAKE_SECRET_TOKEN_SHOULD_NEVER_LEAK_123456789',
+    });
+    await new Promise<void>((resolve) => {
+      prodServer = prodApp.listen(0, '127.0.0.1', () => {
+        const addr = prodServer!.address();
+        if (addr && typeof addr === 'object') {
+          prodBaseUrl = `http://127.0.0.1:${addr.port}`;
+        }
+        resolve();
+      });
+    });
+    return prodBaseUrl;
+  };
+
+  after(async () => {
+    if (prodServer) {
+      prodServer.closeAllConnections?.();
+      await new Promise<void>((resolve) => prodServer!.close(() => resolve()));
+      prodServer = null;
+    }
+  });
+
+  it('exposes public /api/auth/config and /api/instagram/status without leaking any secrets', async () => {
+    const url = await ensureProdServer();
+
+    const cfgRes = await fetch(`${url}/api/auth/config`);
+    assert.equal(cfgRes.status, 200);
+    const cfgText = await cfgRes.text();
+    assert.ok(!cfgText.includes('super_secure_cloudflare_jwt_secret'), 'JWT_SECRET must never leak');
+    const cfg: any = JSON.parse(cfgText);
+    assert.equal(cfg.googleClientId, '1234567890-testclient.apps.googleusercontent.com');
+    assert.equal(cfg.googleOAuthEnabled, true);
+    assert.equal(cfg.jwtSecretConfigured, true);
+    assert.equal(cfg.environment, 'production');
+
+    const igRes = await fetch(`${url}/api/instagram/status`);
+    assert.equal(igRes.status, 200);
+    const igText = await igRes.text();
+    assert.ok(!igText.includes('EAA_FAKE_SECRET_TOKEN'), 'IG_ACCESS_TOKEN must never leak');
+    const ig: any = JSON.parse(igText);
+    assert.equal(ig.success, true);
+    assert.equal(ig.tokenConfigured, true);
+    assert.equal(ig.tokenType, 'facebook_graph_eaa');
+  });
+
+  it('rejects simulated tokens in production when GOOGLE_CLIENT_ID is configured', async () => {
+    const url = await ensureProdServer();
+    const res = await fetch(`${url}/api/auth/google`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: 'https://dugdhsar-og.workers.dev',
+        'X-Forwarded-For': '203.0.113.55',
+      },
+      body: JSON.stringify({
+        idToken: 'sim_google_token_attack',
+        email: 'sumitpawar65005@gmail.com',
+        portalContext: 'admin',
+      }),
+    });
+    assert.equal(res.status, 401);
+  });
+
+  it('configures single-source-of-truth CSP for Google Sign-In, Google Maps & Instagram CDN without invalid wildcards or wildcard API CORS', () => {
+    const headersSrc = fs.readFileSync(path.resolve(process.cwd(), 'public/_headers'), 'utf8');
+    const cspSrc = fs.readFileSync(path.resolve(process.cwd(), 'server/config/csp.ts'), 'utf8');
+    const prerenderSrc = fs.readFileSync(path.resolve(process.cwd(), 'scripts/prerender.ts'), 'utf8');
+
+    // No invalid wildcard 'scontent*.cdninstagram.com' anywhere
+    assert.ok(!headersSrc.includes('scontent*.cdninstagram.com'));
+    assert.ok(!cspSrc.includes('scontent*.cdninstagram.com'));
+    assert.ok(!prerenderSrc.includes('scontent*.cdninstagram.com'));
+
+    // Valid Instagram img-src & media-src wildcards
+    assert.ok(headersSrc.includes('https://*.cdninstagram.com'));
+    assert.ok(headersSrc.includes('https://*.fbcdn.net'));
+    assert.ok(headersSrc.includes('media-src') && headersSrc.includes('https://*.cdninstagram.com'));
+
+    // Google Maps & existing frame-src entries preserved
+    assert.ok(headersSrc.includes('https://maps.google.com'));
+    assert.ok(headersSrc.includes('https://www.google.com'));
+    assert.ok(headersSrc.includes('https://accounts.google.com'));
+    assert.ok(headersSrc.includes('https://challenges.cloudflare.com'));
+    assert.ok(headersSrc.includes('https://api.razorpay.com'));
+
+    // Prerender uses single source of truth instead of duplicating CSP
+    assert.ok(prerenderSrc.includes('buildCloudflareHeadersFile'));
+    assert.ok(!headersSrc.includes('Access-Control-Allow-Origin: *'));
+
+    const workerSrc = fs.readFileSync(path.resolve(process.cwd(), 'server/worker.ts'), 'utf8');
+    assert.ok(!workerSrc.includes('app.use(cors())'), 'Worker must not use wildcard cors()');
+    assert.ok(workerSrc.includes('refreshInstagramToken'));
+  });
+
+  it('POST /api/vitals accepts text/plain sendBeacon, JSON payloads, and returns 204 even on invalid payloads', async () => {
+    const url = await ensureProdServer();
+
+    // 1. text/plain sendBeacon payload (like navigator.sendBeacon with string)
+    const beaconRes = await fetch(`${url}/api/vitals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify({
+        name: 'LCP',
+        value: 1420.5,
+        rating: 'good',
+        id: 'v1-test-lcp',
+        navigationType: 'navigate',
+        delta: 1420.5,
+        path: '/',
+        extraFieldIgnored: true,
+      }),
+    });
+    assert.equal(beaconRes.status, 204);
+
+    // 2. application/json valid payload (INP / CLS)
+    const jsonRes = await fetch(`${url}/api/vitals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'CLS',
+        value: 0.02,
+        rating: 'good',
+        navigationType: 'reload',
+      }),
+    });
+    assert.equal(jsonRes.status, 204);
+
+    // 3. Invalid payload / malformed JSON must STILL return 204 (never 400 in browser)
+    const badSchemaRes = await fetch(`${url}/api/vitals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'TTFB', value: -5 }),
+    });
+    assert.equal(badSchemaRes.status, 204);
+
+    const badJsonRes = await fetch(`${url}/api/vitals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: '{not-valid-json',
+    });
+    assert.equal(badJsonRes.status, 204);
+  });
+
+  it('errorHandler emits one sanitized JSON console.error line (<=8 stack lines) and keeps prod client response generic', async () => {
+    const { errorHandler } = await import('../server/middleware/errorHandler');
+    const { getMissingRequiredEnvKeys, REQUIRED_PRODUCTION_ENV_KEYS } = await import('../server/env');
+
+    // Verify single-source missing env names check (never returns values)
+    const missingAll = getMissingRequiredEnvKeys({});
+    assert.deepEqual(missingAll, [...REQUIRED_PRODUCTION_ENV_KEYS]);
+    const missingPartial = getMissingRequiredEnvKeys({
+      JWT_SECRET: 'valid_32_char_secret_key_for_prod_test_1234',
+      GOOGLE_CLIENT_ID: 'client-id.apps.googleusercontent.com',
+    });
+    assert.deepEqual(missingPartial, ['IG_ACCESS_TOKEN']);
+
+    // Capture console.error output from errorHandler
+    const capturedErrors: string[] = [];
+    const origError = console.error;
+    console.error = (...args: any[]) => {
+      capturedErrors.push(args.map(String).join(' '));
+    };
+
+    let statusCode = 0;
+    let bodySent: any = null;
+    const headers: Record<string, string> = {};
+    try {
+      const rootCause = new Error('JWKS fetch failed for user alice@example.com phone +91 9876543210');
+      const err = new Error('Crash with Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature123456', {
+        cause: rootCause,
+      });
+      err.stack = Array.from({ length: 15 }, (_, i) => `    at frame${i} (/app/server/auth.ts:${i + 1}:1)`).join('\n');
+
+      const mockReq = {
+        id: 'req-test-500',
+        originalUrl: '/api/auth/google?debug=1',
+        url: '/api/auth/google',
+        method: 'POST',
+        env: { ENVIRONMENT: 'production' },
+      } as any;
+      const mockRes = {
+        getHeader: () => undefined,
+        setHeader: (k: string, v: string) => {
+          headers[k] = v;
+        },
+        status: (code: number) => {
+          statusCode = code;
+          return {
+            json: (payload: any) => {
+              bodySent = payload;
+            },
+          };
+        },
+      } as any;
+
+      errorHandler(err, mockReq, mockRes, () => {});
+    } finally {
+      console.error = origError;
+    }
+
+    assert.equal(statusCode, 500);
+    assert.equal(bodySent?.error?.message, 'An unexpected error occurred. Please contact support with your Request ID.');
+    assert.equal(bodySent?.requestId || headers['X-Request-Id'], 'req-test-500');
+
+    // First console.error call must be the single-line JSON error record
+    const parsedLog = JSON.parse(capturedErrors[0]);
+    assert.equal(parsedLog.requestId, 'req-test-500');
+    assert.equal(parsedLog.route, '/api/auth/google');
+    assert.equal(parsedLog.method, 'POST');
+    assert.equal(parsedLog.errorName, 'Error');
+    assert.ok(!parsedLog.message.includes('eyJhbGciOiJIUzI1NiJ9'), 'JWT must be redacted');
+    assert.ok(!parsedLog.cause.includes('alice@example.com'), 'Full email must be redacted');
+    assert.ok(!parsedLog.cause.includes('9876543210'), 'Full phone must be redacted');
+    assert.ok(parsedLog.stack.split('\n').length <= 8, 'Stack must be capped at 8 lines');
+  });
+});
+
+
+
 
 

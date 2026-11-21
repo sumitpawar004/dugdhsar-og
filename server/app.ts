@@ -48,18 +48,18 @@ import {
 } from './services/staffAccessRegistry';
 import { generateUniqueQrToken } from '../src/lib/qrCode';
 import { appendRowsToGoogleSheet, SUBSCRIPTION_SHEET_COLUMNS, ORDER_SHEET_COLUMNS } from './sheets';
-import { getInstagramFeed, verifyMetaHubSignature, markInstagramCacheStale } from './instagram';
+import { getInstagramFeed, getInstagramConnectionStatus, verifyMetaHubSignature, markInstagramCacheStale } from './instagram';
 import { requestIdMiddleware } from './middleware/requestId';
 import { securityHeadersMiddleware } from './middleware/securityHeaders';
-import { csrfProtection } from './middleware/csrf';
+import { csrfProtection, isAllowedOrigin } from './middleware/csrf';
 import { idempotencyMiddleware } from './middleware/idempotency';
 import { allocateInventoryFefo, softDeleteOrder, softDeleteSubscription } from './services/orderService';
 import { getCached, setCached, invalidateCatalogCache, CACHE_KEYS } from './services/cacheService';
 import { getAllFeatureFlags, setFeatureFlag } from './lib/featureFlags';
 import { errorHandler } from './middleware/errorHandler';
 import { healthRouter } from './routes/health';
-import { logger } from './logger';
-import { validateEnv } from './env';
+import { logger, redactPii } from './logger';
+import { logMissingEnvOnce } from './env';
 import { UnauthorizedError, ForbiddenError, BadRequestError, RateLimitError, NotFoundError } from './errors/AppError';
 import { 
   INITIAL_PRODUCTS, 
@@ -107,18 +107,32 @@ const QuarantineSchema = z.object({
 });
 
 const WebVitalsSchema = z.object({
-  name: z.string().min(1).max(20),
-  value: z.number().nonnegative(),
+  name: z.enum(['LCP', 'INP', 'CLS']),
+  value: z.coerce.number().finite().nonnegative(),
   rating: z.enum(['good', 'needs-improvement', 'poor']).optional(),
-  delta: z.number().optional(),
-  id: z.string().optional(),
-  path: z.string().optional()
+  delta: z.coerce.number().finite().optional(),
+  id: z.string().max(120).optional(),
+  navigationType: z.string().max(64).optional(),
+  path: z.string().max(256).optional(),
 });
 
-export function createApp(workerEnv?: WorkerEnv): express.Express {
+export function createApp(workerEnv?: WorkerEnv | (() => WorkerEnv | undefined)): express.Express {
   const app = express();
+  app.set('trust proxy', true);
 
-  app.use(cors());
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || isAllowedOrigin(origin)) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Idempotency-Key'],
+    })
+  );
   app.use(requestIdMiddleware);
   app.use(securityHeadersMiddleware);
   app.use(csrfProtection);
@@ -151,18 +165,19 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     }
   }));
 
-  // Attach env to request object
+  // Resolve Worker secrets & bindings INSIDE the request handler (never module scope)
   app.use(async (req: Request, _res: Response, next: NextFunction) => {
-    let resolvedEnv = workerEnv;
+    let resolvedEnv = typeof workerEnv === 'function' ? workerEnv() : workerEnv;
     if (!resolvedEnv) {
       try {
         const cf = await import('cloudflare:workers');
-        resolvedEnv = cf.env;
+        resolvedEnv = cf.env as WorkerEnv;
       } catch {
         resolvedEnv = (typeof process !== 'undefined' ? process.env : {}) as any;
       }
     }
     (req as any).env = resolvedEnv;
+    logMissingEnvOnce(resolvedEnv);
     next();
   });
 
@@ -236,53 +251,130 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     });
   });
 
-  // Free-plan friendly Web Vitals beacon: lightweight validation and logging
-  app.post('/api/vitals', (req: Request, res: Response) => {
-    const parsed = WebVitalsSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ success: false, error: 'Invalid vitals payload' });
+  // Free-plan friendly Web Vitals beacon: accepts sendBeacon text/plain & JSON, never returns 4xx to browser
+  app.post(
+    '/api/vitals',
+    express.text({ type: '*/*', limit: '16kb' }),
+    (req: Request, res: Response) => {
+      let rawPayload: unknown = req.body;
+
+      if (typeof rawPayload === 'string') {
+        const trimmed = rawPayload.trim();
+        if (!trimmed) {
+          return res.status(204).end();
+        }
+        try {
+          rawPayload = JSON.parse(trimmed);
+        } catch {
+          console.error('[WebVitals] Validation failed: invalid JSON body');
+          return res.status(204).end();
+        }
+      }
+
+      const parsed = WebVitalsSchema.safeParse(rawPayload);
+      if (!parsed.success) {
+        const sanitizedIssues = parsed.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          code: issue.code,
+          message: issue.message,
+        }));
+        console.error('[WebVitals] Validation issues:', JSON.stringify(sanitizedIssues));
+        return res.status(204).end();
+      }
+
+      const env: WorkerEnv = (req as any).env;
+      const isProduction =
+        env?.ENVIRONMENT === 'production' ||
+        (typeof process !== 'undefined' && process?.env?.NODE_ENV === 'production');
+
+      // Store nothing heavy: emit one compact line to Workers Observability in production only
+      if (isProduction) {
+        const { name, value, rating, navigationType, path: metricPath } = parsed.data;
+        const safePath = (metricPath || '/').split('?')[0].slice(0, 120);
+        console.log(
+          `[CWV] name=${name} value=${value.toFixed(2)} rating=${rating ?? 'n/a'} nav=${navigationType ?? 'n/a'} path=${safePath}`
+        );
+      }
+
+      return res.status(204).end();
     }
-    // In production, keep CPU minimal - log or drop without heavy storage writes
-    const { name, value, rating, path } = parsed.data;
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Core Web Vitals] ${name}: ${value.toFixed(2)} (${rating ?? 'unrated'}) on ${path ?? '/'}`);
-    }
-    return res.status(204).end();
-  });
+  );
 
   // =========================================================================
   // 2. AUTHENTICATION & GOOGLE LOGIN (SERVER VERIFIED, 2FA, TOKENS & SESSIONS)
   // =========================================================================
-  app.post('/api/auth/google', authRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
-    const clientIp = getClientIp(req);
-    const ipLockout = checkAccountLockout(clientIp);
-    if (ipLockout.isLocked) {
-      return next(new RateLimitError(`Too many failed authentication attempts from this IP. Try again in ${ipLockout.lockRemainingSeconds}s.`, ipLockout.lockRemainingSeconds));
-    }
-
-    const parsed = GoogleAuthSchema.safeParse(req.body);
-    if (!parsed.success) {
-      recordFailedAuthAttempt(clientIp);
-      return res.status(400).json({ success: false, error: 'Invalid Google authentication payload', details: parsed.error.format() });
-    }
-
-    const { idToken, totpCode, portalContext } = parsed.data;
+  // Public runtime authentication configuration (NEVER exposes secrets)
+  app.get('/api/auth/config', (req: Request, res: Response) => {
     const env: WorkerEnv = (req as any).env;
+    const googleClientId =
+      env?.GOOGLE_CLIENT_ID ||
+      (typeof process !== 'undefined' && process?.env ? process.env.GOOGLE_CLIENT_ID : undefined) ||
+      null;
+    const jwtSecret =
+      env?.JWT_SECRET ||
+      (typeof process !== 'undefined' && process?.env ? process.env.JWT_SECRET : undefined);
+    const environment =
+      env?.ENVIRONMENT ||
+      (typeof process !== 'undefined' && process?.env ? process.env.NODE_ENV : undefined) ||
+      'development';
+
+    res.json({
+      success: true,
+      googleClientId,
+      googleOAuthEnabled: Boolean(googleClientId),
+      jwtSecretConfigured: Boolean(jwtSecret && jwtSecret.trim().length >= 32),
+      environment,
+    });
+  });
+
+  app.post('/api/auth/google', authRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+    const requestId = req.id || (res.getHeader('X-Request-Id') as string) || crypto.randomUUID();
+    const clientIp = getClientIp(req);
+    let currentStage: 'env_checked' | 'google_token_verified' | 'user_upserted' | 'session_signed' = 'env_checked';
+
+    const logStage = (stage: typeof currentStage) => {
+      console.log(JSON.stringify({ requestId, route: '/api/auth/google', stage }));
+    };
 
     try {
-      // 1. Verify Google ID token against Google JWKS with jose
+      const ipLockout = checkAccountLockout(clientIp);
+      if (ipLockout.isLocked) {
+        return next(new RateLimitError(`Too many failed authentication attempts from this IP. Try again in ${ipLockout.lockRemainingSeconds}s.`, ipLockout.lockRemainingSeconds));
+      }
+
+      // Stage 1: Resolve runtime env & validate payload inside request handler (never module scope)
+      const env: WorkerEnv = (req as any).env;
+      const expectedAud = env?.GOOGLE_CLIENT_ID || (typeof process !== 'undefined' && process?.env ? process.env.GOOGLE_CLIENT_ID : undefined);
+      const isProduction = env?.ENVIRONMENT === 'production' || (typeof process !== 'undefined' && process?.env?.NODE_ENV === 'production');
+
+      const parsed = GoogleAuthSchema.safeParse(req.body);
+      if (!parsed.success) {
+        recordFailedAuthAttempt(clientIp);
+        return res.status(400).json({ success: false, error: 'Invalid Google authentication payload', details: parsed.error.format() });
+      }
+      logStage('env_checked');
+
+      const { idToken, totpCode, portalContext } = parsed.data;
+
+      // Stage 2: Verify Google ID token against Google JWKS with jose
+      currentStage = 'google_token_verified';
       let email: string;
       let name: string;
       let picture: string | undefined;
 
       try {
-        const expectedAud = env?.GOOGLE_CLIENT_ID || (typeof process !== 'undefined' && process?.env ? process.env.GOOGLE_CLIENT_ID : undefined);
         const verified = await verifyGoogleIdToken(idToken, expectedAud);
         email = verified.email;
         name = verified.name;
         picture = verified.picture;
       } catch (e: any) {
-        // Fallback for preview/test environments when OIDC client ID is not configured
+        // In production with real GOOGLE_CLIENT_ID configured, strictly reject simulated tokens
+        if (isProduction && expectedAud) {
+          recordFailedAuthAttempt(clientIp);
+          return next(new UnauthorizedError('Real Google Sign-In verification is required on this deployment. Please click the "Sign in with Google" button.'));
+        }
+
+        // Fallback for local dev / automated tests / unconfigured Cloudflare preview before GOOGLE_CLIENT_ID is added
         if (idToken.startsWith('sim_google_token_') || idToken === 'dev_token') {
           const suppliedEmail = (parsed.data.email || '').trim().toLowerCase();
           if (!suppliedEmail) {
@@ -303,8 +395,10 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       if (accountLockout.isLocked) {
         return next(new RateLimitError(`Account temporarily locked due to repeated failed logins. Retry in ${accountLockout.lockRemainingSeconds}s.`, accountLockout.lockRemainingSeconds));
       }
+      logStage('google_token_verified');
 
-      // 2. Determine user role securely & enforce MAX 3 enterprise accounts for Admin / Manager / Dealer
+      // Stage 3: Resolve role, enforce MAX 3 enterprise accounts, and build user record
+      currentStage = 'user_upserted';
       let role: UserRole = determineUserRole(email, env);
       let portalRole: 'customer' | EnterprisePortalRole = 'customer';
 
@@ -337,7 +431,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         }
       }
 
-      // 3. Super Admin TOTP verification if provided
+      // Super Admin TOTP verification if provided
       if (role === 'super_admin' && totpCode) {
         const adminSecret = env?.SUPER_ADMIN_TOTP_SECRET || 'JBSWY3DPEHPK3PXP';
         const isValidTotp = await verifyTotpCode(adminSecret, totpCode);
@@ -355,13 +449,20 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
         avatarUrl: picture,
         dealerId: role === 'dealer' ? `dealer_${email.split('@')[0]}` : undefined
       };
+      logStage('user_upserted');
 
-      // 4. Issue signed JWT session tokens: 15-minute access + 30-day refresh
+      // Stage 4: Issue signed JWT session tokens (15-min access + 30-day refresh) & cookies
+      currentStage = 'session_signed';
       const accessToken = await createSessionJwt(user, env);
       const refreshToken = await createRefreshToken(user, env);
 
-      // Set HttpOnly SameSite=Lax Secure cookies
-      setSessionCookies(res, accessToken.token, refreshToken.token);
+      // Set HttpOnly SameSite=Lax Secure cookies (HTTPS-aware for Cloudflare Workers)
+      const isSecureRequest =
+        req.secure ||
+        req.headers['x-forwarded-proto'] === 'https' ||
+        env?.ENVIRONMENT === 'production';
+      setSessionCookies(res, accessToken.token, refreshToken.token, isSecureRequest);
+      logStage('session_signed');
 
       // Reset lockout counter on success
       resetAuthLockout(email);
@@ -388,6 +489,15 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       });
     } catch (err: any) {
       recordFailedAuthAttempt(clientIp);
+      console.error(
+        JSON.stringify({
+          requestId,
+          route: '/api/auth/google',
+          failedStage: currentStage,
+          errorName: err?.name || 'Error',
+          message: redactPii(String(err?.message || err)),
+        })
+      );
       next(err);
     }
   });
@@ -498,9 +608,13 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     }
 
     const env: WorkerEnv = (req as any).env;
+    const isSecureRequest =
+      req.secure ||
+      req.headers['x-forwarded-proto'] === 'https' ||
+      env?.ENVIRONMENT === 'production';
     const verified = await verifyRefreshToken(refreshToken, env);
     if (!verified) {
-      clearSessionCookies(res);
+      clearSessionCookies(res, isSecureRequest);
       return next(new UnauthorizedError('Invalid or expired refresh token. Please sign in again.'));
     }
 
@@ -516,7 +630,7 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
     const newAccessToken = await createSessionJwt(user, env);
     const newRefreshToken = await createRefreshToken(user, env);
 
-    setSessionCookies(res, newAccessToken.token, newRefreshToken.token);
+    setSessionCookies(res, newAccessToken.token, newRefreshToken.token, isSecureRequest);
 
     res.json({
       success: true,
@@ -529,8 +643,12 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   app.post('/api/auth/logout', async (req: Request, res: Response) => {
     const user = (req as any).user;
     const env: WorkerEnv = (req as any).env;
+    const isSecureRequest =
+      req.secure ||
+      req.headers['x-forwarded-proto'] === 'https' ||
+      env?.ENVIRONMENT === 'production';
     
-    clearSessionCookies(res);
+    clearSessionCookies(res, isSecureRequest);
 
     if (user?.id) {
       // Revoke current session
@@ -1465,7 +1583,12 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
       reason: 'User requested erasure under DPDP Act'
     });
 
-    clearSessionCookies(res);
+    const env: WorkerEnv = (req as any).env;
+    const isSecureRequest =
+      req.secure ||
+      req.headers['x-forwarded-proto'] === 'https' ||
+      env?.ENVIRONMENT === 'production';
+    clearSessionCookies(res, isSecureRequest);
     res.json({
       success: true,
       message: 'Account data anonymized and active subscriptions cancelled under DPDP Act & GDPR compliance.'
@@ -1538,11 +1661,23 @@ export function createApp(workerEnv?: WorkerEnv): express.Express {
   app.get('/api/instagram/feed', async (req: Request, res: Response) => {
     try {
       const env: WorkerEnv = (req as any).env;
-      const feed = await getInstagramFeed(env);
+      const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+      const feed = await getInstagramFeed(env, { forceRefresh });
       res.json(feed);
     } catch (err: any) {
       console.warn('[Instagram Feed Endpoint] Error:', err.message);
       res.status(500).json({ error: 'Failed to load Instagram feed' });
+    }
+  });
+
+  // Safe diagnostic endpoint to verify real Instagram Graph API connection (never leaks tokens)
+  app.get('/api/instagram/status', async (req: Request, res: Response) => {
+    try {
+      const env: WorkerEnv = (req as any).env;
+      const status = await getInstagramConnectionStatus(env);
+      res.json({ success: true, ...status });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: 'Failed to read Instagram connection status' });
     }
   });
 

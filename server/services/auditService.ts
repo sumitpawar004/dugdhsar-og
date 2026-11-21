@@ -16,8 +16,11 @@ export interface AuditEvent {
     | 'DATA_EXPORTED'
     | 'USER_DELETED'
     | 'SUBSCRIPTION_MODIFIED'
-    | 'ADMIN_LOGIN_2FA';
-  targetType: 'order' | 'subscription' | 'product' | 'batch' | 'user' | 'system';
+    | 'ADMIN_LOGIN_2FA'
+    | 'UNAUTHORIZED_PORTAL_ACCESS_BLOCKED'
+    | 'STAFF_SLOT_UPDATED'
+    | 'STAFF_SLOT_REVOKED';
+  targetType: 'order' | 'subscription' | 'product' | 'batch' | 'user' | 'system' | 'portal' | 'staff_registry';
   targetId: string;
   details?: Record<string, any>;
   ip?: string;

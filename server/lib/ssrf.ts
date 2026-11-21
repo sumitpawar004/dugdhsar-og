@@ -7,6 +7,7 @@ export const APPROVED_OUTBOUND_DOMAINS = [
   'sheets.googleapis.com',
   'oauth2.googleapis.com',
   'graph.instagram.com',
+  'graph.facebook.com',
   'challenges.cloudflare.com',
   'api.razorpay.com',
 ];

@@ -8,6 +8,7 @@ interface OrderQrCodeProps {
   orderNumber?: string;
   qrToken: string;
   deliveryDate?: string;
+  status?: string;
   isDelivered?: boolean;
   verifiedAt?: string;
   verifiedBy?: string;
@@ -22,7 +23,8 @@ export const OrderQrCode: React.FC<OrderQrCodeProps> = ({
   orderNumber,
   qrToken,
   deliveryDate,
-  isDelivered = false,
+  status,
+  isDelivered: isDeliveredProp = false,
   verifiedAt,
   verifiedBy,
   title = 'Doorstep Delivery Verification QR',
@@ -30,6 +32,7 @@ export const OrderQrCode: React.FC<OrderQrCodeProps> = ({
   sizePx = 196,
   compact = false,
 }) => {
+  const isDelivered = isDeliveredProp || status === 'delivered';
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { navigate } = useRouter();
   const [copied, setCopied] = useState(false);

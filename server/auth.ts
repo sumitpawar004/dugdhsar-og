@@ -6,15 +6,48 @@ import { parseCookies, setSessionCookies, clearSessionCookies } from './cookies'
 import { UnauthorizedError, ForbiddenError } from './errors/AppError';
 import { logger } from './logger';
 
-// Google JWKS keyset cache
-const GOOGLE_JWKS = jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+const GOOGLE_JWKS_URL = new URL('https://www.googleapis.com/oauth2/v3/certs');
 
 // In-memory revoked token JTI cache (jti -> expiry timestamp ms)
 const revokedJtiStore = new Map<string, number>();
 
+// Ephemeral cryptographically random fallback key (used only if JWT_SECRET secret isn't bound yet)
+let ephemeralRuntimeSecret: Uint8Array | null = null;
+let warnedMissingJwtSecret = false;
+
 function getJwtSecretBytes(env?: WorkerEnv): Uint8Array {
-  const validated = validateEnv(env);
-  return new TextEncoder().encode(validated.JWT_SECRET);
+  const rawSecret =
+    env?.JWT_SECRET ||
+    (typeof process !== 'undefined' && process?.env ? process.env.JWT_SECRET : undefined);
+  const envMode =
+    env?.ENVIRONMENT ||
+    (typeof process !== 'undefined' && process?.env ? process.env.ENVIRONMENT : 'development');
+
+  if (rawSecret && rawSecret.length >= 16 && !(envMode === 'production' && rawSecret.includes('dev_only'))) {
+    return new TextEncoder().encode(rawSecret);
+  }
+
+  if (envMode !== 'production') {
+    try {
+      const validated = validateEnv(env);
+      return new TextEncoder().encode(validated.JWT_SECRET);
+    } catch {
+      // fall through to ephemeral CSPRNG key
+    }
+  }
+
+  if (!ephemeralRuntimeSecret) {
+    const buf = new Uint8Array(new ArrayBuffer(32));
+    crypto.getRandomValues(buf);
+    ephemeralRuntimeSecret = buf;
+  }
+  if (!warnedMissingJwtSecret) {
+    warnedMissingJwtSecret = true;
+    logger.warn(
+      '[Auth] JWT_SECRET is not configured in Cloudflare Workers secrets yet. Using an ephemeral runtime key — run `npx wrangler secret put JWT_SECRET` so sessions persist across Worker restarts.'
+    );
+  }
+  return ephemeralRuntimeSecret;
 }
 
 /**
@@ -25,10 +58,11 @@ function getJwtSecretBytes(env?: WorkerEnv): Uint8Array {
  */
 export function determineUserRole(email: string, env?: WorkerEnv, _requestedRole?: string): UserRole {
   const cleanEmail = email.toLowerCase().trim();
-  const validated = validateEnv(env);
+  const procEnv = typeof process !== 'undefined' && process?.env ? process.env : {};
 
   // Super Admin emails
-  const envSuperAdmins = (validated.SUPER_ADMIN_EMAILS || '')
+  const rawSuperAdmins = env?.SUPER_ADMIN_EMAILS ?? procEnv.SUPER_ADMIN_EMAILS ?? '';
+  const envSuperAdmins = rawSuperAdmins
     .split(',')
     .map((e: string) => e.trim().toLowerCase())
     .filter(Boolean);
@@ -39,7 +73,8 @@ export function determineUserRole(email: string, env?: WorkerEnv, _requestedRole
   }
 
   // Dealer emails
-  const envDealers = (validated.DEALER_EMAILS || '')
+  const rawDealers = env?.DEALER_EMAILS ?? procEnv.DEALER_EMAILS ?? '';
+  const envDealers = rawDealers
     .split(',')
     .map((e: string) => e.trim().toLowerCase())
     .filter(Boolean);
@@ -61,7 +96,9 @@ export async function verifyGoogleIdToken(
   expectedAudience?: string
 ): Promise<{ email: string; name: string; picture?: string; sub: string }> {
   try {
-    const { payload } = await jose.jwtVerify(idToken, GOOGLE_JWKS, {
+    // Instantiate per-request so Cloudflare Workers never shares I/O promises across request contexts
+    const googleJwks = jose.createRemoteJWKSet(GOOGLE_JWKS_URL);
+    const { payload } = await jose.jwtVerify(idToken, googleJwks, {
       issuer: ['https://accounts.google.com', 'accounts.google.com'],
       audience: expectedAudience || undefined,
     });
@@ -263,10 +300,13 @@ export async function extractAuthUser(req: Request, env?: WorkerEnv): Promise<Au
 /**
  * Middleware: attach user to req.user if session token is valid
  */
-export function authMiddleware(env?: WorkerEnv) {
+export function authMiddleware(envOrGetter?: WorkerEnv | (() => WorkerEnv | undefined)) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
-      const user = await extractAuthUser(req, (req as any).env || env);
+      const resolvedEnv =
+        (req as any).env ||
+        (typeof envOrGetter === 'function' ? envOrGetter() : envOrGetter);
+      const user = await extractAuthUser(req, resolvedEnv);
       (req as any).user = user;
     } catch {
       (req as any).user = null;

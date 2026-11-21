@@ -8,6 +8,7 @@ export const EnvSchema = z.object({
   // Runtime Environment
   ENVIRONMENT: z.enum(['production', 'staging', 'development', 'test']).default('development'),
   NODE_ENV: z.string().optional(),
+  APP_URL: z.string().optional(),
 
   // Application Secrets
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters long').default(
@@ -23,6 +24,8 @@ export const EnvSchema = z.object({
 
   // Meta / Instagram Graph API
   IG_ACCESS_TOKEN: z.string().optional(),
+  IG_USER_ID: z.string().optional(),
+  IG_APP_ID: z.string().optional(),
   IG_APP_SECRET: z.string().optional(),
   IG_VERIFY_TOKEN: z.string().default('dugdhsar_ig_verify_token'),
 
@@ -91,6 +94,49 @@ export function validateEnv(rawEnv?: Record<string, any>): ValidatedEnv {
 
   cachedEnv = parsed.data;
   return parsed.data;
+}
+
+export const REQUIRED_PRODUCTION_ENV_KEYS = [
+  'JWT_SECRET',
+  'GOOGLE_CLIENT_ID',
+  'IG_ACCESS_TOKEN',
+] as const;
+
+let hasLoggedMissingEnv = false;
+
+/**
+ * Returns ONLY the names of missing required secrets/vars (never returns values).
+ */
+export function getMissingRequiredEnvKeys(rawEnv?: Record<string, any>): string[] {
+  const procEnv = typeof process !== 'undefined' && process?.env ? process.env : {};
+  const missing: string[] = [];
+
+  for (const key of REQUIRED_PRODUCTION_ENV_KEYS) {
+    const val = rawEnv?.[key] ?? procEnv[key];
+    const strVal = typeof val === 'string' ? val.trim() : '';
+    if (!strVal || (key === 'JWT_SECRET' && strVal.includes('dev_only'))) {
+      missing.push(key);
+    }
+  }
+
+  return missing;
+}
+
+/**
+ * Runs once inside the first request handler (when Cloudflare Worker secrets are bound)
+ * and logs ONLY the names of missing required env vars.
+ */
+export function logMissingEnvOnce(rawEnv?: Record<string, any>): string[] {
+  const missing = getMissingRequiredEnvKeys(rawEnv);
+  if (!hasLoggedMissingEnv) {
+    hasLoggedMissingEnv = true;
+    if (missing.length > 0) {
+      console.warn(`missing env: ${missing.join(', ')}`);
+    } else {
+      console.log('startup env check: all required env bindings present');
+    }
+  }
+  return missing;
 }
 
 export function getCachedEnv(): ValidatedEnv {

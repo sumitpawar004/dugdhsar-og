@@ -878,7 +878,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const orderId = `SUB-${subscriptionId}-${deliveryDate}`;
     const newRecord: DailyDeliveryQrRecord = {
-      id: `dqr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       subscriptionId,
       orderId,
       deliveryDate,

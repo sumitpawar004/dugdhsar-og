@@ -61,13 +61,16 @@ export function serializeCookie(name: string, value: string, options: CookieOpti
 export function setSessionCookies(
   res: Response,
   accessToken: string,
-  refreshToken: string
+  refreshToken: string,
+  isSecure?: boolean
 ): void {
+  const secureFlag = typeof isSecure === 'boolean' ? isSecure : process.env.NODE_ENV === 'production';
+
   // Access Token: 15 minutes (900 seconds)
   const accessCookie = serializeCookie('dugdhsar_access', accessToken, {
     maxAgeSeconds: 15 * 60,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureFlag,
     sameSite: 'Lax',
     path: '/',
   });
@@ -76,7 +79,7 @@ export function setSessionCookies(
   const refreshCookie = serializeCookie('dugdhsar_refresh', refreshToken, {
     maxAgeSeconds: 30 * 24 * 60 * 60,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureFlag,
     sameSite: 'Lax',
     path: '/',
   });
@@ -84,11 +87,13 @@ export function setSessionCookies(
   res.setHeader('Set-Cookie', [accessCookie, refreshCookie]);
 }
 
-export function clearSessionCookies(res: Response): void {
+export function clearSessionCookies(res: Response, isSecure?: boolean): void {
+  const secureFlag = typeof isSecure === 'boolean' ? isSecure : process.env.NODE_ENV === 'production';
+
   const clearAccess = serializeCookie('dugdhsar_access', '', {
     maxAgeSeconds: 0,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureFlag,
     sameSite: 'Lax',
     path: '/',
   });
@@ -96,7 +101,7 @@ export function clearSessionCookies(res: Response): void {
   const clearRefresh = serializeCookie('dugdhsar_refresh', '', {
     maxAgeSeconds: 0,
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureFlag,
     sameSite: 'Lax',
     path: '/',
   });

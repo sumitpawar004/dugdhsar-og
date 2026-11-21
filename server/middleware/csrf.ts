@@ -9,7 +9,8 @@ const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/www\.dugdhsar\.in$/,
   /^https:\/\/.*\.dugdhsar\.in$/,
   /^https:\/\/.*\.run\.app$/, // Cloud Run preview/dev environment
-  /^https:\/\/.*\.workers\.dev$/, // Cloudflare Workers preview
+  /^https:\/\/.*\.workers\.dev$/, // Cloudflare Workers preview & prod
+  /^https:\/\/.*\.pages\.dev$/, // Cloudflare Pages preview & prod
 ];
 
 // Routes that receive genuine server-to-server external webhooks or beacons

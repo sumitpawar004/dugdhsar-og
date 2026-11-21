@@ -4,7 +4,12 @@ export interface WorkerEnv {
   };
   CACHE?: any; // Workers KV Namespace binding
   DB?: any; // Cloudflare D1 Database binding
+  APP_URL?: string;
+  ENVIRONMENT?: string;
+  GOOGLE_CLIENT_ID?: string;
   IG_ACCESS_TOKEN?: string;
+  IG_USER_ID?: string;
+  IG_APP_ID?: string;
   IG_APP_SECRET?: string;
   IG_VERIFY_TOKEN?: string;
   JWT_SECRET?: string;
@@ -55,4 +60,5 @@ export interface InstagramFeedResponse {
   profile: InstagramProfile;
   media: InstagramMediaItem[];
   updatedAt: string;
+  source?: 'live' | 'cache' | 'fallback';
 }
