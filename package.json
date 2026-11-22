@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx server.ts",
     "test": "tsx --test tests/**/*.test.ts",
+    "test:d1": "vitest run",
     "build": "vite build && tsx scripts/prerender.ts",
     "perf": "tsx scripts/verify-seo-perf.ts",
     "deploy": "npm run build && wrangler deploy",
@@ -47,6 +48,7 @@
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
   }
 }

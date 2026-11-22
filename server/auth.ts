@@ -5,6 +5,13 @@ import { validateEnv } from './env';
 import { parseCookies, setSessionCookies, clearSessionCookies } from './cookies';
 import { UnauthorizedError, ForbiddenError } from './errors/AppError';
 import { logger } from './logger';
+import { getD1 } from './db/client';
+import {
+  getBootstrapDealerEmails,
+  getSuperAdminEmails,
+  isSessionRevokedInDb,
+  revokeSessionInDb,
+} from './db/authRepo';
 
 const GOOGLE_JWKS_URL = new URL('https://www.googleapis.com/oauth2/v3/certs');
 
@@ -58,30 +65,21 @@ function getJwtSecretBytes(env?: WorkerEnv): Uint8Array {
  */
 export function determineUserRole(email: string, env?: WorkerEnv, _requestedRole?: string): UserRole {
   const cleanEmail = email.toLowerCase().trim();
-  const procEnv = typeof process !== 'undefined' && process?.env ? process.env : {};
 
-  // Super Admin emails
-  const rawSuperAdmins = env?.SUPER_ADMIN_EMAILS ?? procEnv.SUPER_ADMIN_EMAILS ?? '';
-  const envSuperAdmins = rawSuperAdmins
-    .split(',')
-    .map((e: string) => e.trim().toLowerCase())
-    .filter(Boolean);
-
-  const defaultSuperAdmins = ['sumitpawar65005@gmail.com', 'admin@dugdhsar.in'];
-  if (defaultSuperAdmins.includes(cleanEmail) || envSuperAdmins.includes(cleanEmail)) {
+  // Super Admin is granted ONLY via SUPER_ADMIN_EMAILS (with dev-only fallback when unset)
+  if (getSuperAdminEmails(env).includes(cleanEmail)) {
     return 'super_admin';
   }
 
-  // Dealer emails
-  const rawDealers = env?.DEALER_EMAILS ?? procEnv.DEALER_EMAILS ?? '';
-  const envDealers = rawDealers
-    .split(',')
-    .map((e: string) => e.trim().toLowerCase())
-    .filter(Boolean);
-
-  const defaultDealers = ['dealer@dugdhsar.in', 'manager@dugdhsar.in'];
-  if (defaultDealers.includes(cleanEmail) || envDealers.includes(cleanEmail)) {
+  // Dealer bootstrap emails (in D1 mode, DEALER_EMAILS only bootstraps on first login)
+  if (getBootstrapDealerEmails(env).includes(cleanEmail)) {
     return 'dealer';
+  }
+
+  const procEnv = typeof process !== 'undefined' && process?.env ? process.env : {};
+  const isProd = (env?.ENVIRONMENT || procEnv.ENVIRONMENT || procEnv.NODE_ENV) === 'production';
+  if (!isProd && ['dealer@dugdhsar.in', 'manager@dugdhsar.in'].includes(cleanEmail)) {
+    return cleanEmail === 'manager@dugdhsar.in' ? 'manager' : 'dealer';
   }
 
   return 'customer';
@@ -124,24 +122,37 @@ export async function verifyGoogleIdToken(
 }
 
 /**
- * Revoke a token by JTI (stored with expiry)
+ * Clear in-memory isolate revocation cache (used in tests to verify D1-backed revocation directly).
  */
-export async function revokeToken(jti: string, expiresAtMs: number, env?: WorkerEnv): Promise<void> {
+export function clearInMemoryRevokedJtiCache(): void {
+  revokedJtiStore.clear();
+}
+
+/**
+ * Revoke a token by JTI (persisted to D1 revoked_sessions + isolate fast-hit cache).
+ * Legacy KV revoked_token storage is removed — D1 revoked_sessions is the single source of truth.
+ */
+export async function revokeToken(
+  jti: string,
+  expiresAtMs: number,
+  env?: WorkerEnv,
+  userId?: string,
+  reason = 'logout'
+): Promise<void> {
   revokedJtiStore.set(jti, expiresAtMs);
 
-  // If Cloudflare KV is available, also persist revocation
-  if (env?.CACHE) {
+  const db = getD1(env);
+  if (db && userId) {
     try {
-      const ttlSeconds = Math.max(60, Math.ceil((expiresAtMs - Date.now()) / 1000));
-      await env.CACHE.put(`revoked_token:${jti}`, '1', { expirationTtl: ttlSeconds });
+      await revokeSessionInDb(db, { jti, userId, reason, expiresAtMs });
     } catch (err: any) {
-      logger.warn('[Auth] KV token revocation write failed', { error: err.message });
+      logger.warn('[Auth] D1 token revocation write failed', { error: err.message });
     }
   }
 }
 
 /**
- * Check if a JTI has been revoked
+ * Check if a JTI has been revoked (fast isolate hit -> single indexed PK lookup in D1 revoked_sessions).
  */
 export async function isTokenRevoked(jti: string, env?: WorkerEnv): Promise<boolean> {
   const localExp = revokedJtiStore.get(jti);
@@ -153,12 +164,12 @@ export async function isTokenRevoked(jti: string, env?: WorkerEnv): Promise<bool
     return true;
   }
 
-  if (env?.CACHE) {
+  const db = getD1(env);
+  if (db) {
     try {
-      const kvVal = await env.CACHE.get(`revoked_token:${jti}`);
-      if (kvVal) return true;
+      return await isSessionRevokedInDb(db, jti);
     } catch {
-      // ignore KV lookup failures
+      // non-fatal if table not migrated yet
     }
   }
 
@@ -166,7 +177,7 @@ export async function isTokenRevoked(jti: string, env?: WorkerEnv): Promise<bool
 }
 
 /**
- * Issue a signed short-lived session access JWT (15 minutes)
+ * Issue a signed short-lived session access JWT (15 minutes) with sub=user.id, role, and jti.
  */
 export async function createSessionJwt(user: AuthUser, env?: WorkerEnv): Promise<{ token: string; jti: string }> {
   const secretBytes = getJwtSecretBytes(env);
@@ -183,6 +194,7 @@ export async function createSessionJwt(user: AuthUser, env?: WorkerEnv): Promise
     tokenType: 'access',
   })
     .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(user.id)
     .setJti(jti)
     .setIssuedAt()
     .setExpirationTime('15m')
@@ -192,7 +204,7 @@ export async function createSessionJwt(user: AuthUser, env?: WorkerEnv): Promise
 }
 
 /**
- * Issue a rolling refresh JWT (30 days)
+ * Issue a rolling refresh JWT (30 days) with sub=user.id, role, and jti.
  */
 export async function createRefreshToken(user: AuthUser, env?: WorkerEnv): Promise<{ token: string; jti: string }> {
   const secretBytes = getJwtSecretBytes(env);
@@ -205,6 +217,7 @@ export async function createRefreshToken(user: AuthUser, env?: WorkerEnv): Promi
     tokenType: 'refresh',
   })
     .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(user.id)
     .setJti(jti)
     .setIssuedAt()
     .setExpirationTime('30d')
@@ -238,6 +251,7 @@ export async function verifySessionJwt(token: string, env?: WorkerEnv): Promise<
       avatarUrl: payload.avatarUrl as string | undefined,
       dealerId: payload.dealerId as string | undefined,
       assignedPincodes: payload.assignedPincodes as string[] | undefined,
+      jti: payload.jti as string | undefined,
     };
   } catch {
     return null;

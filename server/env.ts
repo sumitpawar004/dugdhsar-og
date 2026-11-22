@@ -33,9 +33,10 @@ export const EnvSchema = z.object({
   SUPER_ADMIN_EMAILS: z.string().default('sumitpawar65005@gmail.com,admin@dugdhsar.in'),
   DEALER_EMAILS: z.string().default('dealer@dugdhsar.in,manager@dugdhsar.in'),
 
-  // Optional Payment Gateway
+  // Optional Payment Gateway (Test-Mode Only: rzp_test_*)
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 
   // Outbound Network Controls
   OUTBOUND_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),

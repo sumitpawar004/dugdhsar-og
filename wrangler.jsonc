@@ -23,7 +23,7 @@
       "migrations_dir": "migrations"
     }
   ],
-  "triggers": { "crons": ["0 3 * * *"] },
+  "triggers": { "crons": ["0 3 * * *", "30 12 * * *"] },
   "observability": { "enabled": true },
   "vars": {
     "ENVIRONMENT": "production",

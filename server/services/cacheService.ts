@@ -5,6 +5,8 @@ export const CACHE_KEYS = {
   PRODUCTS: 'cache:catalog:products',
   CATEGORIES: 'cache:catalog:categories',
   PURITY: 'cache:catalog:purity',
+  PLANS: 'cache:catalog:plans',
+  SITE_SETTINGS: 'cache:catalog:site_settings',
   INSTAGRAM_FEED: 'ig_feed_cache',
 };
 
@@ -15,7 +17,6 @@ const localCache = new Map<string, { data: any; expiresAt: number }>();
  * Get cached item from Workers KV or local memory
  */
 export async function getCached<T>(key: string, env?: WorkerEnv): Promise<T | null> {
-  // Check local memory first
   const memoryHit = localCache.get(key);
   if (memoryHit) {
     if (Date.now() < memoryHit.expiresAt) {
@@ -24,7 +25,6 @@ export async function getCached<T>(key: string, env?: WorkerEnv): Promise<T | nu
     localCache.delete(key);
   }
 
-  // Check Workers KV
   if (env?.CACHE) {
     try {
       const raw = await env.CACHE.get(key);
@@ -41,7 +41,7 @@ export async function getCached<T>(key: string, env?: WorkerEnv): Promise<T | nu
 }
 
 /**
- * Put item in cache with TTL
+ * Put item in cache with TTL (default 300s = 5 min for public catalog)
  */
 export async function setCached<T>(
   key: string,
@@ -50,7 +50,7 @@ export async function setCached<T>(
   ttlOrEnv?: number | WorkerEnv
 ): Promise<void> {
   let env: WorkerEnv | undefined;
-  let ttlSeconds = 3600;
+  let ttlSeconds = 300;
 
   if (typeof envOrTtl === 'number') {
     ttlSeconds = envOrTtl;
@@ -80,20 +80,27 @@ export async function setCached<T>(
 
 /**
  * Event-Driven Cache Invalidation:
- * Automatically purges public catalog caches when products, prices, or batches are updated.
+ * Explicitly purges ALL public catalog KV & isolate caches when admin updates products,
+ * variants, plans, or site settings.
  */
 export async function invalidateCatalogCache(env?: WorkerEnv): Promise<void> {
-  localCache.delete(CACHE_KEYS.PRODUCTS);
-  localCache.delete(CACHE_KEYS.CATEGORIES);
-  localCache.delete(CACHE_KEYS.PURITY);
+  const categorySlugs = ['milk', 'ghee', 'paneer', 'curd', 'butter', 'khoya-mawa'];
+  const keys = [
+    CACHE_KEYS.PRODUCTS,
+    ...categorySlugs.map((slug) => `${CACHE_KEYS.PRODUCTS}:${slug}`),
+    CACHE_KEYS.CATEGORIES,
+    CACHE_KEYS.PURITY,
+    CACHE_KEYS.PLANS,
+    CACHE_KEYS.SITE_SETTINGS,
+  ];
+
+  for (const k of keys) {
+    localCache.delete(k);
+  }
 
   if (env?.CACHE) {
     try {
-      await Promise.all([
-        env.CACHE.delete(CACHE_KEYS.PRODUCTS),
-        env.CACHE.delete(CACHE_KEYS.CATEGORIES),
-        env.CACHE.delete(CACHE_KEYS.PURITY),
-      ]);
+      await Promise.all(keys.map((k) => env.CACHE.delete(k)));
       logger.info('[CacheService] Catalog caches successfully invalidated at edge');
     } catch (err: any) {
       logger.warn('[CacheService] KV cache invalidation failed', { error: err.message });

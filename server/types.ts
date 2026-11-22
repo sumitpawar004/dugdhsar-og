@@ -1,9 +1,40 @@
+export interface D1Meta {
+  changed_db?: boolean;
+  changes?: number;
+  duration?: number;
+  last_row_id?: number;
+  rows_read?: number;
+  rows_written?: number;
+  served_by?: string;
+}
+
+export interface D1Result<T = Record<string, unknown>> {
+  results: T[];
+  success: boolean;
+  error?: string;
+  meta?: D1Meta;
+}
+
+export interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = Record<string, unknown>>(colName?: string): Promise<T | null>;
+  run<T = Record<string, unknown>>(): Promise<D1Result<T>>;
+  all<T = Record<string, unknown>>(): Promise<D1Result<T>>;
+  raw<T = unknown[]>(): Promise<T[]>;
+}
+
+export interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+  batch<T = Record<string, unknown>>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
+  exec?(query: string): Promise<{ count: number; duration: number }>;
+}
+
 export interface WorkerEnv {
   ASSETS?: {
     fetch: (request: Request) => Promise<Response>;
   };
   CACHE?: any; // Workers KV Namespace binding
-  DB?: any; // Cloudflare D1 Database binding
+  DB?: D1Database; // Cloudflare D1 Database binding (dugdhsar-prod)
   APP_URL?: string;
   ENVIRONMENT?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -19,12 +50,13 @@ export interface WorkerEnv {
   GOOGLE_SHEETS_WEBHOOK_URL?: string;
   RAZORPAY_KEY_ID?: string;
   RAZORPAY_KEY_SECRET?: string;
+  RAZORPAY_WEBHOOK_SECRET?: string;
   SUPER_ADMIN_EMAILS?: string;
   DEALER_EMAILS?: string;
   [key: string]: any;
 }
 
-export type UserRole = 'super_admin' | 'dealer' | 'customer';
+export type UserRole = 'super_admin' | 'manager' | 'dealer' | 'customer';
 
 export interface AuthUser {
   id: string;
@@ -34,6 +66,7 @@ export interface AuthUser {
   avatarUrl?: string;
   dealerId?: string;
   assignedPincodes?: string[];
+  jti?: string;
 }
 
 export interface InstagramProfile {

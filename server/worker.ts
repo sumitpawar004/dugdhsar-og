@@ -4,6 +4,7 @@ import express from "express";
 import cors from "cors";
 import { createAppRouter } from "./app";
 import { refreshInstagramToken } from "./instagram";
+import { runEveningSubscriptionCron } from "./cron/dailySubscriptions";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { isAllowedOrigin } from "./middleware/csrf";
 import { errorHandler } from "./middleware/errorHandler";
@@ -70,8 +71,23 @@ const handler = httpServerHandler({ port: 3000 });
 export default {
   ...handler,
 
-  // Daily cron: Refresh long-lived Meta/Instagram access token (reads env inside handler, never module scope)
-  async scheduled() {
+  // Separate scheduled triggers (reads env inside handler, never module scope):
+  // - "30 12 * * *" (6:00 PM IST): Generate tomorrow's subscription deliveries in batches of 50 + cleanup
+  // - "0 3 * * *"   (8:30 AM IST): Refresh long-lived Meta/Instagram access token
+  async scheduled(controller?: { cron?: string }) {
+    const cronExpr = controller?.cron || "";
+
+    if (cronExpr === "30 12 * * *") {
+      try {
+        await runEveningSubscriptionCron(env as any);
+      } catch (err: any) {
+        logger.error("[Subscription Cron] Evening batch execution failed", {
+          error: err?.message || "unknown_error",
+        });
+      }
+      return;
+    }
+
     try {
       const result = await refreshInstagramToken(env as any);
       if (result.success) {
