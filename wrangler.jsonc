@@ -28,6 +28,6 @@
   "observability": { "enabled": true },
   "vars": {
     "ENVIRONMENT": "production",
-    "APP_URL": "https://dugdhsar-og.sumitpawar65005.workers.dev"
+    "APP_URL": "https://dugdhsar.in"
   }
 }
