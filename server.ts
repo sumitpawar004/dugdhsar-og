@@ -1,3 +1,4 @@
+import fs from 'fs';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,9 +27,17 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, 'dist')));
-    app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const distDir = path.join(__dirname, 'dist');
+    app.use(express.static(distDir));
+    app.get('*', (req: Request, res: Response) => {
+      const cleanPath = req.path.replace(/^\/+|\/+$/g, '');
+      if (cleanPath && !cleanPath.includes('..')) {
+        const flatHtml = path.join(distDir, `${cleanPath}.html`);
+        if (flatHtml.startsWith(distDir + path.sep) && fs.existsSync(flatHtml)) {
+          return res.status(200).sendFile(flatHtml);
+        }
+      }
+      return res.status(200).sendFile(path.join(distDir, 'index.html'));
     });
   }
 

@@ -28,7 +28,7 @@ export const Preloader: React.FC<PreloaderProps> = ({ onComplete }) => {
     return () => clearInterval(interval);
   }, [onComplete]);
 
-  if (isDone) return null;
+  if (typeof window === 'undefined' || isDone) return null;
 
   return (
     <div

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { siteConfig } from '../config/site';
+import { siteConfig, isPlaceholderValue } from '../config/site';
 import { RouteMeta, PUBLIC_ROUTES_META, staticContent } from '../content';
 
 /**
@@ -199,50 +199,59 @@ export function generateSchemaGraph(route: RouteMeta): object {
   const graph: any[] = [];
 
   // 1. Organization
-  graph.push({
+  const orgNode: Record<string, unknown> = {
     '@type': 'Organization',
     '@id': `${siteConfig.url}/#organization`,
     name: siteConfig.name,
-    legalName: siteConfig.legalName,
     url: siteConfig.url,
     logo: {
       '@type': 'ImageObject',
       '@id': `${siteConfig.url}/#logo`,
       url: `${siteConfig.url}/assets/aistudio/1000095624-clean_337007be.png`,
-      caption: `${siteConfig.name} Gir Cow Emblem`,
+      caption: `${siteConfig.name} Logo`,
     },
     image: siteConfig.ogImage,
-    email: siteConfig.contact.email,
-    telephone: siteConfig.contact.phoneFormatted,
     sameAs: [siteConfig.social.instagram],
-    foundingDate: `${siteConfig.foundingYear}-01-01`,
-  });
+  };
+  if (!isPlaceholderValue(siteConfig.legalName)) {
+    orgNode.legalName = siteConfig.legalName;
+  }
+  if (!isPlaceholderValue(siteConfig.contact.email)) {
+    orgNode.email = siteConfig.contact.email;
+  }
+  if (!isPlaceholderValue(siteConfig.contact.phoneFormatted)) {
+    orgNode.telephone = siteConfig.contact.phoneFormatted;
+  }
+  if (siteConfig.foundingYear) {
+    orgNode.foundingDate = `${siteConfig.foundingYear}-01-01`;
+  }
+  graph.push(orgNode);
 
-  // 2. LocalBusiness / DairyStore
-  graph.push({
-    '@type': ['LocalBusiness', 'DairyStore', 'FoodEstablishment'],
+  // 2. LocalBusiness / FoodEstablishment
+  const addressNode: Record<string, unknown> = {
+    '@type': 'PostalAddress',
+    addressLocality: siteConfig.location.city,
+    addressRegion: siteConfig.location.state,
+    addressCountry: siteConfig.location.country,
+  };
+  if (!isPlaceholderValue(siteConfig.location.street)) {
+    addressNode.streetAddress = siteConfig.location.street;
+  }
+  if (!isPlaceholderValue(siteConfig.location.postalCode)) {
+    addressNode.postalCode = siteConfig.location.postalCode;
+  }
+
+  const localBusinessNode: Record<string, unknown> = {
+    '@type': ['LocalBusiness', 'FoodEstablishment'],
     '@id': `${siteConfig.url}/#localbusiness`,
     name: siteConfig.name,
+    description: siteConfig.description,
     image: siteConfig.ogImage,
     url: siteConfig.url,
-    telephone: siteConfig.contact.phoneFormatted,
-    email: siteConfig.contact.email,
     priceRange: siteConfig.business.priceRange,
     currenciesAccepted: 'INR',
-    paymentAccepted: 'Cash, UPI, Credit Card, Net Banking',
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: siteConfig.location.street,
-      addressLocality: siteConfig.location.city,
-      addressRegion: siteConfig.location.state,
-      postalCode: siteConfig.location.postalCode,
-      addressCountry: siteConfig.location.country,
-    },
-    geo: {
-      '@type': 'GeoCoordinates',
-      latitude: siteConfig.location.latitude,
-      longitude: siteConfig.location.longitude,
-    },
+    paymentAccepted: 'Cash on Delivery, Razorpay (UPI, Cards, Net Banking)',
+    address: addressNode,
     openingHoursSpecification: siteConfig.business.openingHoursSpecification.map((spec) => ({
       '@type': 'OpeningHoursSpecification',
       dayOfWeek: spec.dayOfWeek,
@@ -254,8 +263,14 @@ export function generateSchemaGraph(route: RouteMeta): object {
       name: area.name,
       postalCode: area.postalCode,
     })),
-    hasMap: siteConfig.location.googleMapsUrl,
-  });
+  };
+  if (!isPlaceholderValue(siteConfig.contact.phoneFormatted)) {
+    localBusinessNode.telephone = siteConfig.contact.phoneFormatted;
+  }
+  if (!isPlaceholderValue(siteConfig.contact.email)) {
+    localBusinessNode.email = siteConfig.contact.email;
+  }
+  graph.push(localBusinessNode);
 
   // 3. WebSite with SearchAction
   graph.push({

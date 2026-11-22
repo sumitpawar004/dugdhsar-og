@@ -1,41 +1,182 @@
 import React from 'react';
+import { siteConfig, isPlaceholderValue } from '../../config/site';
+import { usePageSEO } from '../../lib/seo';
 
 export const TermsPage: React.FC = () => {
+  usePageSEO({
+    title: `Terms & Conditions — ${siteConfig.name}`,
+    description: `Terms and Conditions for using ${siteConfig.name} A2 milk and dairy delivery subscriptions and one-time orders in ${siteConfig.business.deliveryArea}.`,
+    canonical: `${siteConfig.url}/terms-and-conditions`,
+  });
+
+  const emailHref = isPlaceholderValue(siteConfig.contact.email)
+    ? undefined
+    : `mailto:${siteConfig.contact.email}`;
+
   return (
-    <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-16">
+    <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="bg-[#FAF6EE] p-8 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
-          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">Legal Terms</p>
-          <h1 className="text-3xl font-serif text-[#263D30] font-normal mb-6">Terms & Conditions</h1>
-          <p className="text-xs text-[#302C26]/70 mb-8">Effective Date: January 1, 2026</p>
+        <div className="bg-[#FAF6EE] p-6 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
+          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">
+            Service Terms
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-serif text-[#263D30] font-normal mb-3">
+            Terms &amp; Conditions
+          </h1>
+          <p className="text-xs text-[#302C26]/70 mb-8">
+            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name} ({siteConfig.legalName})
+          </p>
 
-          <div className="prose prose-stone text-xs sm:text-sm text-[#302C26]/85 space-y-6 leading-relaxed">
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">1. Contract of Sale</h3>
-            <p>
-              By accessing DUGDHSAR website or placing a subscription/one-time purchase order, you agree to be bound by these Terms of Service. 
-              Orders placed before 8:00 PM are scheduled for dispatch the following dawn (5:30 AM – 7:00 AM).
-            </p>
+          <div className="space-y-7 text-sm text-[#302C26]/90 leading-relaxed">
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                1. Acceptance of Terms
+              </h2>
+              <p>
+                These Terms &amp; Conditions govern your access to {siteConfig.url} and your
+                purchase of A2 milk and dairy products (through one-time orders or recurring
+                delivery subscriptions) from {siteConfig.name} ({siteConfig.legalName}) in{' '}
+                {siteConfig.business.deliveryArea}. By placing an order or starting a subscription,
+                you agree to these terms.
+              </p>
+            </section>
 
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">2. Glass Bottle Deposit & Ahimsa Stewardship</h3>
-            <p>
-              Our fresh milk is provided in reusable glass bottles. Subscribers agree to rinse and return empty bottles in the designated 
-              insulated doorstep bag. Unreturned or broken bottles may incur a nominal replacement fee of ₹40 per bottle.
-            </p>
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                2. Account &amp; Accurate Delivery Details
+              </h2>
+              <p>
+                Customer accounts use Google Sign-In. You are responsible for keeping your contact
+                phone number, delivery address, pincode, and doorstep instructions accurate so our
+                delivery team can reach you reliably.
+              </p>
+            </section>
 
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">3. Perishable Good Storage Responsibility</h3>
-            <p>
-              DUGDHSAR delivers farm-fresh, unadulterated milk and cottage cheese at 2°C – 4°C. Customers must retrieve bottles from their 
-              doorstep before 07:30 AM and immediately store in home refrigeration below 4°C.
-            </p>
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                3. Orders, Subscriptions &amp; Daily Cut-Off
+              </h2>
+              <ul className="list-disc pl-5 space-y-1.5">
+                <li>
+                  <strong>Pricing:</strong> All product prices and delivery charges are displayed in
+                  Indian Rupees (INR) before checkout confirmation.
+                </li>
+                <li>
+                  <strong>Subscriptions:</strong> You may subscribe for recurring deliveries (such
+                  as daily, alternate days, weekdays, or weekly) and pause, skip, or cancel upcoming
+                  deliveries from your account.
+                </li>
+                <li>
+                  <strong>Cut-off time:</strong> Changes, pauses, skips, or cancellations for the
+                  next day&apos;s delivery must be submitted before{' '}
+                  <strong>{siteConfig.business.cutoffTime}</strong>. Requests submitted after the
+                  cut-off apply from the following delivery cycle.
+                </li>
+              </ul>
+            </section>
 
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">4. Intellectual Property</h3>
-            <p>
-              The DUGDHSAR trademark, Gir Cow roundel emblem, Bilona Vidhi documentation, and editorial photographs are protected under 
-              the Copyright Act of India.
-            </p>
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                4. Payments
+              </h2>
+              <p>
+                We accept online payments processed through <strong>Razorpay</strong> (UPI, cards,
+                net banking) as well as Cash on Delivery (COD) and UPI on delivery where available.
+                Orders paid online are confirmed once payment is verified by Razorpay.
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                5. Perishable Product Handling &amp; Reusable Bottles
+              </h2>
+              <p>
+                Fresh milk and dairy items are perishable food products. Please collect your
+                delivery promptly after drop-off and refrigerate immediately. Where products are
+                delivered in reusable glass bottles, please rinse empty bottles and leave them out
+                for collection during your next scheduled delivery.
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                6. Cancellations, Refunds &amp; Delivery Policy
+              </h2>
+              <p>
+                Order cancellations, subscription pauses, and refunds are governed by our{' '}
+                <a href="/cancellation-refund" className="text-[#A34F37] underline font-medium">
+                  Cancellation &amp; Refund Policy
+                </a>
+                . Service areas, delivery timings, and shipping charges are described in our{' '}
+                <a href="/shipping-policy" className="text-[#A34F37] underline font-medium">
+                  Shipping Policy
+                </a>
+                .
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                7. Service Availability &amp; Governing Law
+              </h2>
+              <p>
+                We aim to deliver consistently during scheduled windows, but deliveries may
+                occasionally be delayed or rescheduled due to severe weather, road disruptions, or
+                other events outside our reasonable control. These terms are governed by the laws
+                of India, and disputes are subject to the courts having jurisdiction in{' '}
+                {siteConfig.legal.jurisdiction}.
+              </p>
+            </section>
+
+            <section className="space-y-2 p-5 rounded-xl bg-[#F8F4EC] border border-[#D8C9AD]">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                8. Business &amp; Contact Information
+              </h2>
+              <ul className="space-y-1 text-xs sm:text-sm">
+                <li>
+                  <strong>Business Name:</strong> {siteConfig.name} ({siteConfig.legalName})
+                </li>
+                <li>
+                  <strong>Address:</strong> {siteConfig.location.fullAddress}
+                </li>
+                <li>
+                  <strong>Phone:</strong> {siteConfig.contact.phoneFormatted}
+                </li>
+                <li>
+                  <strong>Email:</strong>{' '}
+                  {emailHref ? (
+                    <a href={emailHref} className="text-[#A34F37] underline">
+                      {siteConfig.contact.email}
+                    </a>
+                  ) : (
+                    siteConfig.contact.email
+                  )}
+                </li>
+                <li>
+                  <strong>FSSAI License Number:</strong> {siteConfig.business.fssaiLicense}
+                </li>
+              </ul>
+            </section>
+
+            <section className="space-y-2 pt-2 border-t border-[#D8C9AD]/60 text-xs text-[#302C26]/75">
+              <p>
+                Related policies:{' '}
+                <a href="/privacy-policy" className="text-[#A34F37] underline font-medium">
+                  Privacy Policy
+                </a>{' '}
+                ·{' '}
+                <a href="/cancellation-refund" className="text-[#A34F37] underline font-medium">
+                  Cancellation &amp; Refund Policy
+                </a>{' '}
+                ·{' '}
+                <a href="/shipping-policy" className="text-[#A34F37] underline font-medium">
+                  Shipping Policy
+                </a>
+              </p>
+            </section>
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 };

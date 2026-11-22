@@ -1,98 +1,182 @@
 import React from 'react';
+import { siteConfig, isPlaceholderValue } from '../../config/site';
+import { usePageSEO } from '../../lib/seo';
+export { CancellationRefundPage } from './CancellationRefundPage';
 
 export const ShippingPolicyPage: React.FC = () => {
+  usePageSEO({
+    title: `Shipping & Delivery Policy — ${siteConfig.name}`,
+    description: `Local delivery coverage, morning and evening slots, cut-off times, and delivery fees for ${siteConfig.name} A2 milk and dairy orders in ${siteConfig.business.deliveryArea}.`,
+    canonical: `${siteConfig.url}/shipping-policy`,
+  });
+
+  const emailHref = isPlaceholderValue(siteConfig.contact.email)
+    ? undefined
+    : `mailto:${siteConfig.contact.email}`;
+
   return (
-    <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-16">
+    <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="bg-[#FAF6EE] p-8 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
-          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">Logistics Standard</p>
-          <h1 className="text-3xl font-serif text-[#263D30] font-normal mb-6">Cold-Chain Shipping Policy</h1>
-          <p className="text-xs text-[#302C26]/70 mb-8">Serviceable Territories & Delivery Protocols</p>
+        <div className="bg-[#FAF6EE] p-6 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
+          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">
+            Local Delivery Standards
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-serif text-[#263D30] font-normal mb-3">
+            Shipping &amp; Delivery Policy
+          </h1>
+          <p className="text-xs text-[#302C26]/70 mb-8">
+            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name} ({siteConfig.legalName})
+          </p>
 
-          <div className="prose prose-stone text-xs sm:text-sm text-[#302C26]/85 space-y-6 leading-relaxed">
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">1. Serviceable Territories</h3>
-            <p>
-              Fresh perishable dairy (A2 Gir Cow Milk, Fresh Malai Paneer, Clay-Pot Curd, and White Butter) is dispatched locally across 
-              active zones in <strong>Seoni, Madhya Pradesh</strong> (including Barghat Road, Sufi Nagar, Sanjay Vihar, Sukla, and neighboring localities). 
-              Ambient shelf-stable goods (Vedic Bilona Ghee, Wild Honey, Wood-Pressed Mustard Oil) are shipped nationwide via courier.
-            </p>
+          <div className="space-y-7 text-sm text-[#302C26]/90 leading-relaxed">
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                1. Serviceable Delivery Area
+              </h2>
+              <p>
+                {siteConfig.name} currently delivers fresh A2 milk and dairy products locally within
+                serviceable pincodes of <strong>{siteConfig.business.deliveryArea}</strong>. You can
+                check whether your pincode is covered before placing an order or starting a
+                subscription at checkout.
+              </p>
+            </section>
 
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">2. Delivery Slots & Working Days</h3>
-            <p>
-              <strong>Morning Delivery:</strong> 05:00 AM – 10:00 AM (Daily · All 7 Days of the week).<br />
-              <strong>Evening Delivery:</strong> 06:00 PM – 10:00 PM (Daily · All 7 Days of the week).
-            </p>
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                2. Delivery Time Slots &amp; Order Cut-Off
+              </h2>
+              <ul className="list-disc pl-5 space-y-1.5">
+                <li>
+                  <strong>Morning Delivery Window:</strong> {siteConfig.business.morningHours}
+                </li>
+                <li>
+                  <strong>Evening Delivery Window:</strong> {siteConfig.business.eveningHours}
+                </li>
+                <li>
+                  <strong>Next-Day Cut-Off Time:</strong> Orders and subscription changes placed
+                  before <strong>{siteConfig.business.cutoffTime}</strong> are scheduled for the
+                  next day&apos;s delivery slot. Orders placed after the cut-off are scheduled for
+                  the following delivery cycle.
+                </li>
+              </ul>
+            </section>
 
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">3. Free Shipping Thresholds</h3>
-            <p>
-              Orders of ₹250 (25,000 paise) and above qualify for complimentary door-to-door cold-chain delivery. 
-              Orders below this threshold incur a nominal ₹50 logistics fee to cover insulated ice-gel packaging.
-            </p>
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                3. Delivery Charges
+              </h2>
+              <p>
+                Any applicable delivery charge or free-delivery threshold for your delivery zone is
+                calculated and displayed clearly in your cart and checkout summary before you place
+                an order.
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                4. Doorstep Delivery &amp; Accuracy of Address
+              </h2>
+              <p>
+                Please ensure your address, landmark, pincode, optional map coordinates, and mobile
+                number are accurate and that our delivery partner can access your doorstep during
+                the chosen delivery window. If a delivery cannot be completed due to an incorrect
+                address or unreachable location, our team will try to contact you on your registered
+                phone number.
+              </p>
+            </section>
+
+            <section className="space-y-2 p-5 rounded-xl bg-[#F8F4EC] border border-[#D8C9AD]">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                5. Delivery Support
+              </h2>
+              <p className="text-xs sm:text-sm">
+                <strong>{siteConfig.name}</strong> · {siteConfig.location.fullAddress}
+                <br />
+                Phone: {siteConfig.contact.phoneFormatted} · Email:{' '}
+                {emailHref ? (
+                  <a href={emailHref} className="text-[#A34F37] underline">
+                    {siteConfig.contact.email}
+                  </a>
+                ) : (
+                  siteConfig.contact.email
+                )}
+              </p>
+            </section>
+
+            <section className="space-y-2 pt-2 border-t border-[#D8C9AD]/60 text-xs text-[#302C26]/75">
+              <p>
+                Related policies:{' '}
+                <a href="/privacy-policy" className="text-[#A34F37] underline font-medium">
+                  Privacy Policy
+                </a>{' '}
+                ·{' '}
+                <a href="/terms-and-conditions" className="text-[#A34F37] underline font-medium">
+                  Terms &amp; Conditions
+                </a>{' '}
+                ·{' '}
+                <a href="/cancellation-refund" className="text-[#A34F37] underline font-medium">
+                  Cancellation &amp; Refund Policy
+                </a>
+              </p>
+            </section>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-export const CancellationRefundPage: React.FC = () => {
-  return (
-    <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-16">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="bg-[#FAF6EE] p-8 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
-          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">Consumer Protection</p>
-          <h1 className="text-3xl font-serif text-[#263D30] font-normal mb-6">Cancellation & Refund Policy</h1>
-          <p className="text-xs text-[#302C26]/70 mb-8">Fair & Transparent Consumer Guarantee</p>
-
-          <div className="prose prose-stone text-xs sm:text-sm text-[#302C26]/85 space-y-6 leading-relaxed">
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">1. Order Cancellation</h3>
-            <p>
-              You may cancel any scheduled daily milk delivery or one-time order directly in your Customer Dashboard (/account/orders) 
-              anytime prior to the 08:00 PM cutoff window without penalty.
-            </p>
-
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">2. Purity & Freshness Guarantee</h3>
-            <p>
-              If a delivered glass bottle arrives with broken foil seal, elevated temperature (&gt; 6°C), or curdles upon standard first boiling within 12 hours of delivery, 
-              we provide an immediate 100% refund or instant free replacement without hassle.
-            </p>
-
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">3. Refund Timelines</h3>
-            <p>
-              Approved refunds are credited to the original payment source (UPI, Credit/Debit Card, Net Banking) within 24 to 48 hours. 
-              Instant wallet credits are available upon request.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+    </article>
   );
 };
 
 export const ReturnPolicyPage: React.FC = () => {
+  usePageSEO({
+    title: `Return & Replacement Policy — ${siteConfig.name}`,
+    description: `Return and replacement terms for perishable dairy deliveries from ${siteConfig.name} in ${siteConfig.business.deliveryArea}.`,
+    canonical: `${siteConfig.url}/return-policy`,
+  });
+
   return (
-    <div className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-16">
+    <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="bg-[#FAF6EE] p-8 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
-          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">Returns Protocol</p>
-          <h1 className="text-3xl font-serif text-[#263D30] font-normal mb-6">Return & Replacement Policy</h1>
-          <p className="text-xs text-[#302C26]/70 mb-8">Health Safety Standards for Perishable Dairy</p>
+        <div className="bg-[#FAF6EE] p-6 sm:p-12 rounded-2xl border border-[#D8C9AD] shadow-xs">
+          <p className="text-xs uppercase tracking-widest text-[#A34F37] font-semibold mb-2">
+            Perishable Food Safety
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-serif text-[#263D30] font-normal mb-3">
+            Return &amp; Replacement Policy
+          </h1>
+          <p className="text-xs text-[#302C26]/70 mb-8">
+            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name}
+          </p>
 
-          <div className="prose prose-stone text-xs sm:text-sm text-[#302C26]/85 space-y-6 leading-relaxed">
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">1. Perishable Food Safety Rules</h3>
-            <p>
-              Due to strict FSSAI food hygiene regulations, once fresh milk bottles, paneer blocks, or clay curd pots have been accepted at the doorstep, 
-              physical return of the food item is not permitted. In case of any defect or transit breakage, photographic proof shared via WhatsApp (+91 7067672604) 
-              initiates an immediate replacement.
-            </p>
+          <div className="space-y-6 text-sm text-[#302C26]/90 leading-relaxed">
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                1. Perishable Dairy Items
+              </h2>
+              <p>
+                For food safety and hygiene reasons, fresh milk and perishable dairy products cannot
+                be physically returned once delivered and accepted. If an item arrives damaged,
+                leaking, spoiled, or incorrect, please report it on the same day to{' '}
+                <strong>{siteConfig.contact.email}</strong> or{' '}
+                <strong>{siteConfig.contact.phoneFormatted}</strong> for a replacement or refund.
+              </p>
+            </section>
 
-            <h3 className="text-base font-serif font-semibold text-[#263D30]">2. Shelf-Stable Goods (Ghee & Honey Jars)</h3>
-            <p>
-              Unopened, hermetically sealed Bilona Ghee or Wild Honey jars may be returned within 7 days of delivery if you received the incorrect item or if damaged in transit.
-            </p>
+            <section className="space-y-2">
+              <h2 className="text-lg font-serif font-semibold text-[#263D30]">
+                2. Sealed Non-Perishable Dairy Products
+              </h2>
+              <p>
+                Unopened, tamper-sealed jars (such as ghee) that arrive damaged or incorrect may be
+                reported within 48 hours of delivery for replacement or refund. See our full{' '}
+                <a href="/cancellation-refund" className="text-[#A34F37] underline font-medium">
+                  Cancellation &amp; Refund Policy
+                </a>{' '}
+                for refund timelines.
+              </p>
+            </section>
           </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 };
