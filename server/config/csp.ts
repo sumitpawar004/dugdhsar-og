@@ -8,11 +8,13 @@
  */
 
 export const CSP_DIRECTIVES: Record<string, readonly string[]> = {
-  'default-src': ["'self'", 'https://dugdhsar.in'],
+  'default-src': ["'self'", 'https://dugdhsar.in', 'https://www.dugdhsar.in'],
   'script-src': [
     "'self'",
     "'unsafe-eval'",
     "'unsafe-inline'",
+    'https://dugdhsar.in',
+    'https://www.dugdhsar.in',
     'https://accounts.google.com',
     'https://challenges.cloudflare.com',
     'https://checkout.razorpay.com',
@@ -21,14 +23,18 @@ export const CSP_DIRECTIVES: Record<string, readonly string[]> = {
   'style-src': [
     "'self'",
     "'unsafe-inline'",
+    'https://dugdhsar.in',
+    'https://www.dugdhsar.in',
     'https://fonts.googleapis.com',
     'https://accounts.google.com',
   ],
-  'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
+  'font-src': ["'self'", 'data:', 'https://dugdhsar.in', 'https://fonts.gstatic.com'],
   'img-src': [
     "'self'",
     'data:',
     'blob:',
+    'https://dugdhsar.in',
+    'https://www.dugdhsar.in',
     'https://images.unsplash.com',
     'https://lh3.googleusercontent.com',
     'https://*.googleusercontent.com',
@@ -38,11 +44,15 @@ export const CSP_DIRECTIVES: Record<string, readonly string[]> = {
   ],
   'media-src': [
     "'self'",
+    'https://dugdhsar.in',
     'https://*.cdninstagram.com',
     'https://*.fbcdn.net',
   ],
   'connect-src': [
     "'self'",
+    'https://dugdhsar.in',
+    'https://www.dugdhsar.in',
+    'https://dugdhsar-og.sumitpawar65005.workers.dev',
     'https://accounts.google.com',
     'https://challenges.cloudflare.com',
     'https://api.razorpay.com',
@@ -54,6 +64,7 @@ export const CSP_DIRECTIVES: Record<string, readonly string[]> = {
   ],
   'frame-src': [
     "'self'",
+    'https://dugdhsar.in',
     'https://accounts.google.com',
     'https://challenges.cloudflare.com',
     'https://api.razorpay.com',
@@ -61,8 +72,8 @@ export const CSP_DIRECTIVES: Record<string, readonly string[]> = {
     'https://www.google.com',
   ],
   'frame-ancestors': ["'none'"],
-  'base-uri': ["'self'"],
-  'form-action': ["'self'"],
+  'base-uri': ["'self'", 'https://dugdhsar.in'],
+  'form-action': ["'self'", 'https://dugdhsar.in', 'https://www.dugdhsar.in'],
 };
 
 export function getCspHeader(options?: { allowPreviewIframe?: boolean }): string {

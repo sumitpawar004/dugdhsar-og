@@ -8,7 +8,19 @@ export const EnvSchema = z.object({
   // Runtime Environment
   ENVIRONMENT: z.enum(['production', 'staging', 'development', 'test']).default('development'),
   NODE_ENV: z.string().optional(),
-  APP_URL: z.string().optional(),
+  APP_URL: z
+    .string()
+    .trim()
+    .optional()
+    .transform((val) => (val ? val.replace(/\/+$/, '') : 'https://dugdhsar.in'))
+    .refine((val) => {
+      try {
+        const u = new URL(val);
+        return u.protocol === 'https:' || u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+      } catch {
+        return false;
+      }
+    }, 'APP_URL must be a valid https:// URL (or http://localhost in development)'),
 
   // Application Secrets
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters long').default(
@@ -93,8 +105,44 @@ export function validateEnv(rawEnv?: Record<string, any>): ValidatedEnv {
     throw new Error(errorMsg);
   }
 
+  // Warn if production APP_URL does not point to https://dugdhsar.in (or the testing workers.dev origin)
+  if (parsed.data.ENVIRONMENT === 'production' && !isTrustedAppUrl(parsed.data.APP_URL)) {
+    console.warn(
+      `[DUGDHSAR Config Warning] APP_URL "${parsed.data.APP_URL}" is not the production domain (https://dugdhsar.in).`
+    );
+  }
+
   cachedEnv = parsed.data;
   return parsed.data;
+}
+
+export const PRODUCTION_APP_URL = 'https://dugdhsar.in';
+export const TESTING_WORKERS_APP_URL = 'https://dugdhsar-og.sumitpawar65005.workers.dev';
+
+export function isTrustedAppUrl(appUrl?: string): boolean {
+  if (!appUrl) return false;
+  try {
+    const origin = new URL(appUrl.trim()).origin;
+    return (
+      origin === PRODUCTION_APP_URL ||
+      origin === 'https://www.dugdhsar.in' ||
+      origin === TESTING_WORKERS_APP_URL ||
+      origin === 'https://dugdhsar-og.workers.dev' ||
+      origin.startsWith('http://localhost') ||
+      origin.startsWith('http://127.0.0.1')
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getCanonicalAppUrl(rawEnv?: Record<string, any>): string {
+  const procEnv = typeof process !== 'undefined' && process?.env ? process.env : {};
+  const raw = rawEnv?.APP_URL ?? procEnv.APP_URL;
+  if (typeof raw === 'string' && raw.trim() && isTrustedAppUrl(raw)) {
+    return raw.trim().replace(/\/+$/, '');
+  }
+  return PRODUCTION_APP_URL;
 }
 
 export const REQUIRED_PRODUCTION_ENV_KEYS = [

@@ -38,11 +38,14 @@ describe('Phase 3 Security - CSRF Origin & Referer Verification', () => {
   it('validates allowed origins and rejects unauthorized hosts', () => {
     assert.equal(isAllowedOrigin('https://dugdhsar.in'), true);
     assert.equal(isAllowedOrigin('https://www.dugdhsar.in'), true);
+    assert.equal(isAllowedOrigin('https://dugdhsar-og.sumitpawar65005.workers.dev'), true);
     assert.equal(isAllowedOrigin('http://localhost:3000'), true);
     assert.equal(isAllowedOrigin('http://127.0.0.1:8787'), true);
     assert.equal(isAllowedOrigin('https://preview-abc.run.app'), true);
+    assert.equal(isAllowedOrigin('https://staging.example.in', 'https://staging.example.in'), true);
 
-    // Malicious or attacker domains
+    // Malicious or third-party domains (including arbitrary *.workers.dev)
+    assert.equal(isAllowedOrigin('https://evil-attacker.workers.dev'), false);
     assert.equal(isAllowedOrigin('https://evil-attacker.com'), false);
     assert.equal(isAllowedOrigin('http://dugdhsar.in.evil.com'), false);
     assert.equal(isAllowedOrigin('https://phishing-site.net'), false);

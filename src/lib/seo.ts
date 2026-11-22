@@ -135,8 +135,11 @@ export function usePageSEO(options?: PageSEOProps | string): void {
       updateMetaTag('name', 'keywords', resolvedOptions.keywords.join(', '));
     }
 
-    // Canonical URL
-    const canonical = resolvedOptions.canonical || matchedRouteMeta?.canonical || `${siteConfig.url}${currentPath === '/' ? '' : currentPath}`;
+    // Canonical URL (always pinned to https://dugdhsar.in)
+    const canonical =
+      resolvedOptions.canonical ||
+      matchedRouteMeta?.canonical ||
+      `${siteConfig.url}${currentPath === '/' ? '/' : currentPath}`;
     updateLinkTag('canonical', canonical);
 
     // Robots meta tag
@@ -146,10 +149,13 @@ export function usePageSEO(options?: PageSEOProps | string): void {
       updateMetaTag('name', 'robots', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
     }
 
-    // OpenGraph meta tags
+    // OpenGraph meta tags (ensure absolute https://dugdhsar.in URLs)
     const ogType = resolvedOptions.ogType || matchedRouteMeta?.ogType || 'website';
-    const ogImage = resolvedOptions.ogImage || matchedRouteMeta?.ogImage || siteConfig.ogImage;
-    const ogImageAlt = resolvedOptions.ogImageAlt || `${siteConfig.name} Pure Gir Cow Dairy`;
+    const rawOgImage = resolvedOptions.ogImage || matchedRouteMeta?.ogImage || siteConfig.ogImage;
+    const ogImage = /^https?:\/\//i.test(rawOgImage)
+      ? rawOgImage
+      : `${siteConfig.url}${rawOgImage.startsWith('/') ? rawOgImage : `/${rawOgImage}`}`;
+    const ogImageAlt = resolvedOptions.ogImageAlt || `${siteConfig.name} A2 Milk & Dairy Delivery`;
 
     updateMetaTag('property', 'og:title', finalTitle);
     updateMetaTag('property', 'og:description', description);

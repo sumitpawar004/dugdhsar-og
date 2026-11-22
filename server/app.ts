@@ -155,7 +155,11 @@ export function createApp(workerEnv?: WorkerEnv | (() => WorkerEnv | undefined))
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || isAllowedOrigin(origin)) {
+        const resolvedEnv = typeof workerEnv === 'function' ? workerEnv() : workerEnv;
+        const configuredAppUrl =
+          resolvedEnv?.APP_URL ||
+          (typeof process !== 'undefined' ? process.env?.APP_URL : undefined);
+        if (!origin || isAllowedOrigin(origin, configuredAppUrl)) {
           return callback(null, true);
         }
         return callback(null, false);

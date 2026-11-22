@@ -14,11 +14,12 @@ import { healthRouter } from "./routes/health";
 const app = express();
 app.set("trust proxy", true);
 
-// Allowlisted CORS with credentials support for Cloudflare Workers, Pages & dugdhsar.in
+// Allowlisted CORS with credentials support for https://dugdhsar.in (+ testing workers.dev)
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || isAllowedOrigin(origin)) {
+      const configuredAppUrl = (env as any)?.APP_URL;
+      if (!origin || isAllowedOrigin(origin, configuredAppUrl)) {
         return callback(null, true);
       }
       return callback(null, false);

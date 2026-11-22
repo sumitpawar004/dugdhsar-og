@@ -1,7 +1,4 @@
-# Cloudflare Pages / Workers Redirects File
-# Enforces canonical domain, lowercase paths, and non-trailing slashes
-
-# Legacy & Alias URL 301 Permanent Redirects
+# Cloudflare Redirects File
 /home                   /                     301!
 /index.html             /                     301!
 /about                  /our-story            301!

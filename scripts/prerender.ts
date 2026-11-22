@@ -179,6 +179,8 @@ async function prerender() {
       /<meta\s+name=["']robots["']\s+content=["'][^"']*["']\s*\/?>/i,
       `<meta name="robots" content="noindex, nofollow" />`
     );
+    notFoundHtml = notFoundHtml.replace(/<link\s+rel=["']canonical["'][^>]*\/?>\s*/i, '');
+    notFoundHtml = notFoundHtml.replace(/<meta\s+property=["']og:url["'][^>]*\/?>\s*/i, '');
     notFoundHtml = notFoundHtml.replace('<div id="root"></div>', `<div id="root">${notFoundHtmlApp}</div>`);
     fs.writeFileSync(path.join(distDir, '404.html'), notFoundHtml, 'utf-8');
     console.log('  ✓ Generated: dist/404.html');
@@ -222,6 +224,8 @@ async function prerender() {
       /<meta\s+name=["']robots["']\s+content=["'][^"']*["']\s*\/?>/i,
       `<meta name="robots" content="noindex, nofollow" />`
     );
+    privHtml = privHtml.replace(/<link\s+rel=["']canonical["'][^>]*\/?>\s*/i, '');
+    privHtml = privHtml.replace(/<meta\s+property=["']og:url["'][^>]*\/?>\s*/i, '');
     fs.writeFileSync(outFile, privHtml, 'utf-8');
   }
   console.log('  ✓ Private SPA shells generated with noindex');
