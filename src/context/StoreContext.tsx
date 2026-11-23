@@ -21,6 +21,8 @@ import {
   DailyDeliveryQrRecord,
   formatPaise
 } from '../types';
+import { siteConfig } from '../config/site';
+import { getFssaiRegNo, getGstin, getShopMapsSearchUrl, hasGstin } from '../config/siteHelpers';
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_CATEGORIES, 
@@ -230,30 +232,39 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
   const [siteSettings, setSiteSettings] = useState(() => {
+    const defaultSettings = {
+      brandName: siteConfig.name,
+      address: siteConfig.location.fullAddress,
+      googleMapsUrl: getShopMapsSearchUrl(),
+      phone: siteConfig.contact.phoneFormatted,
+      whatsapp: siteConfig.contact.whatsapp,
+      email: siteConfig.contact.email,
+      fssaiNumber: getFssaiRegNo(),
+      gstin: hasGstin() ? getGstin() : '',
+      morningHours: siteConfig.business.morningHours,
+      eveningHours: siteConfig.business.eveningHours,
+      googleSheetsWebhookUrl: 'https://script.google.com/macros/s/AKfycbx-dugdhsar-a2-dairy-sync/exec',
+      lastGoogleSheetSync: 'Never'
+    };
     try {
       const saved = localStorage.getItem('dugdhsar_site_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (!parsed.fssaiNumber || parsed.fssaiNumber === '10020000000000') {
-          parsed.fssaiNumber = '21426230002154';
+          parsed.fssaiNumber = defaultSettings.fssaiNumber;
+        }
+        // Always ensure shop maps URL uses coordinate-pinned URL instead of legacy 3HP5 text query
+        if (!parsed.googleMapsUrl || String(parsed.googleMapsUrl).includes('3HP5')) {
+          parsed.googleMapsUrl = defaultSettings.googleMapsUrl;
+        }
+        // Clear legacy hardcoded fake GSTIN if present
+        if (parsed.gstin === '23AAACD1964E1Z5' || parsed.gstin === '23AAAAA0000A1Z5') {
+          parsed.gstin = defaultSettings.gstin;
         }
         return parsed;
       }
     } catch {}
-    return {
-      brandName: 'Dugdhsar',
-      address: '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
-      googleMapsUrl: 'https://maps.google.com/?q=3HP5%2B948+Barghat+Rd+Sanjay+Vihar+Colony+Sufi+Nagar+Seoni+Madhya+Pradesh+480661',
-      phone: '+91 7067672604',
-      whatsapp: '+91 7067672604',
-      email: 'contact@dugdhsar.in',
-      fssaiNumber: '21426230002154',
-      gstin: '23AAACD1964E1Z5',
-      morningHours: '5:00 AM – 10:00 AM',
-      eveningHours: '6:00 PM – 10:00 PM',
-      googleSheetsWebhookUrl: 'https://script.google.com/macros/s/AKfycbx-dugdhsar-a2-dairy-sync/exec',
-      lastGoogleSheetSync: 'Never'
-    };
+    return defaultSettings;
   });
   const [deliverySlots] = useState<DeliverySlot[]>(INITIAL_DELIVERY_SLOTS);
   const [journalPosts] = useState<JournalPost[]>(INITIAL_JOURNAL_POSTS);

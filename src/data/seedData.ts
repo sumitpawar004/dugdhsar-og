@@ -13,6 +13,9 @@ import {
   ServiceablePincode,
   AdminUser
 } from '../types';
+import { DELIVERY_CUTOFFS } from '../config/deliveryCutoffs';
+import { siteConfig } from '../config/site';
+import { GAUSHALA_FARM_LOCATION } from '../config/siteHelpers';
 
 // =========================================================================
 // 1. THE 6 APPROVED DUGDHSAR PRODUCT CATEGORIES
@@ -538,7 +541,7 @@ export const INITIAL_DELIVERY_ZONES: DeliveryZone[] = [
     zoneName: 'Seoni Town & Barghat Road Cold Hub', 
     city: 'Seoni', 
     state: 'Madhya Pradesh', 
-    hubAddress: 'DUGDHSAR Dairy, 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni 480661',
+    hubAddress: `${siteConfig.name} Dairy, Barghat Road, Opposite Durga Mandir, Seoni 480661 (${siteConfig.location.latitude}, ${siteConfig.location.longitude})`,
     minOrderPaise: 15000, 
     deliveryFeePaise: 0, 
     freeDeliveryThresholdPaise: 25000,
@@ -549,7 +552,7 @@ export const INITIAL_DELIVERY_ZONES: DeliveryZone[] = [
     zoneName: 'Sukla Gaushala & Environs Hub', 
     city: 'Sukla', 
     state: 'Madhya Pradesh', 
-    hubAddress: 'DUGDHSAR Gaushala Farm Sanctuary, WMJJ+X34, Sukla 480771',
+    hubAddress: `${GAUSHALA_FARM_LOCATION.shortName}, ${GAUSHALA_FARM_LOCATION.address}`,
     minOrderPaise: 15000, 
     deliveryFeePaise: 0, 
     freeDeliveryThresholdPaise: 25000,
@@ -634,20 +637,20 @@ export const INITIAL_SERVICEABLE_PINCODES: ServiceablePincode[] = [
 export const INITIAL_DELIVERY_SLOTS: DeliverySlot[] = [
   {
     id: 'slot-morning',
-    slotName: 'Morning Delivery (5:00 AM - 10:00 AM)',
+    slotName: `Morning Delivery (${DELIVERY_CUTOFFS.morning.windowLabel})`,
     startTime: '05:00 AM',
     endTime: '10:00 AM',
-    cutoffTime: '09:00 PM previous night',
+    cutoffTime: DELIVERY_CUTOFFS.morning.shortLabel,
     maxCapacity: 350,
     currentBookings: 184,
     isActive: true
   },
   {
     id: 'slot-evening',
-    slotName: 'Evening Fresh Delivery (6:00 PM - 10:00 PM)',
+    slotName: `Evening Fresh Delivery (${DELIVERY_CUTOFFS.evening.windowLabel})`,
     startTime: '06:00 PM',
     endTime: '10:00 PM',
-    cutoffTime: '04:00 PM same day',
+    cutoffTime: DELIVERY_CUTOFFS.evening.shortLabel,
     maxCapacity: 250,
     currentBookings: 92,
     isActive: true

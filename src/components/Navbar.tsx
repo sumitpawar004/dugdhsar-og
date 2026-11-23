@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useRouter } from '../router/RouterContext';
+import { siteConfig } from '../config/site';
+import { getCleanTelHref, getShopDirectionsUrl, hasText } from '../config/siteHelpers';
 import { 
   ShoppingBag, 
   Heart, 
@@ -68,11 +70,11 @@ export const Navbar: React.FC = () => {
         {/* Left: Location Arrow Sign with Direct Google Map Route to Shop */}
         <div className="flex items-center space-x-1.5 sm:space-x-2 truncate">
           <a
-            href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
+            href={getShopDirectionsUrl()}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-0.5 rounded-full bg-[#C2A36C] hover:bg-[#d8b97d] text-[#1F3327] font-black text-[9px] sm:text-[10px] uppercase tracking-wider transition-all shadow-xs active:scale-95 group cursor-pointer shrink-0"
-            title="Directions to DugdhSar Shop: 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661"
+            title={`Directions to ${siteConfig.name} Shop (${siteConfig.location.latitude}, ${siteConfig.location.longitude})`}
           >
             <Navigation className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#1F3327] fill-[#1F3327] group-hover:rotate-45 transition-transform shrink-0" />
             <span>Shop Map</span>
@@ -80,17 +82,19 @@ export const Navbar: React.FC = () => {
           </a>
 
           <a
-            href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
+            href={getShopDirectionsUrl()}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-[#FAF6EE] hover:text-[#C2A36C] transition-colors font-semibold truncate group"
-            title="3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661"
+            title={`${siteConfig.name} Shop — ${siteConfig.location.city}, ${siteConfig.location.state}`}
           >
-            <span className="font-bold text-[#C2A36C] underline decoration-[#C2A36C]/50 group-hover:decoration-white">Seoni, MP</span>
-            <span className="text-[10px] text-[#F3EDE1]/80 hidden sm:inline">(Barghat Rd, Sufi Nagar)</span>
+            <span className="font-bold text-[#C2A36C] underline decoration-[#C2A36C]/50 group-hover:decoration-white">
+              {siteConfig.location.city}, MP
+            </span>
+            <span className="text-[10px] text-[#F3EDE1]/80 hidden sm:inline">(Barghat Rd, Seoni)</span>
           </a>
 
-          <span className="truncate text-[#F3EDE1]/75 hidden md:inline">· 5–10 AM & 6–10 PM Daily</span>
+          <span className="truncate text-[#F3EDE1]/75 hidden md:inline">· 5–10 AM &amp; 6–10 PM Daily</span>
         </div>
 
         {/* Right: Farm Fresh Status + Call Support */}
@@ -100,14 +104,23 @@ export const Navbar: React.FC = () => {
             <span className="hidden sm:inline">Farm Fresh: </span><strong className="text-[#C2A36C]">100% Pure A2</strong>
           </div>
 
-          <a 
-            href="tel:7067672604" 
-            className="hidden xs:flex items-center space-x-1 text-[#F3EDE1]/85 hover:text-white"
-            title="Call DUGDHSAR Support"
-          >
-            <PhoneCall className="w-3 h-3 text-[#C2A36C]" />
-            <span>+91 7067672604</span>
-          </a>
+          {hasText(siteConfig.contact.phoneFormatted) && (
+            getCleanTelHref() ? (
+              <a
+                href={`tel:${getCleanTelHref()}`}
+                className="hidden xs:flex items-center space-x-1 text-[#F3EDE1]/85 hover:text-white"
+                title={`Call ${siteConfig.name} Support`}
+              >
+                <PhoneCall className="w-3 h-3 text-[#C2A36C]" />
+                <span>{siteConfig.contact.phoneFormatted}</span>
+              </a>
+            ) : (
+              <span className="hidden xs:flex items-center space-x-1 text-[#F3EDE1]/85">
+                <PhoneCall className="w-3 h-3 text-[#C2A36C]" />
+                <span>{siteConfig.contact.phoneFormatted}</span>
+              </span>
+            )
+          )}
         </div>
       </div>
 
@@ -624,14 +637,14 @@ export const Navbar: React.FC = () => {
 
                 {/* Direct Shop Map Location (Google Maps) */}
                 <a
-                  href="https://www.google.com/maps/dir/?api=1&destination=3HP5%2B948%2C+Barghat+Rd%2C+Sanjay+Vihar+Colony%2C+Sufi+Nagar%2C+Seoni%2C+Madhya+Pradesh+480661"
+                  href={getShopDirectionsUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left bg-[#C2A36C]/15 hover:bg-[#C2A36C]/25 text-[#263D30] font-bold border border-[#C2A36C]/40 transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
                     <Navigation className="w-4 h-4 text-[#A87520] fill-[#A87520]" />
-                    <span>Shop Map & Directions</span>
+                    <span>Shop Map &amp; Directions</span>
                   </div>
                   <ArrowUpRight className="w-4 h-4 text-[#A87520]" />
                 </a>

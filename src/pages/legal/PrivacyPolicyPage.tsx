@@ -1,5 +1,6 @@
 import React from 'react';
-import { siteConfig, isPlaceholderValue } from '../../config/site';
+import { siteConfig } from '../../config/site';
+import { hasRealValue, hasText } from '../../config/siteHelpers';
 import { usePageSEO } from '../../lib/seo';
 
 export const PrivacyPolicyPage: React.FC = () => {
@@ -9,12 +10,13 @@ export const PrivacyPolicyPage: React.FC = () => {
     canonical: `${siteConfig.url}/privacy-policy`,
   });
 
-  const emailHref = isPlaceholderValue(siteConfig.contact.email)
-    ? undefined
-    : `mailto:${siteConfig.contact.email}`;
-  const grievanceEmailHref = isPlaceholderValue(siteConfig.grievanceOfficer.email)
-    ? undefined
-    : `mailto:${siteConfig.grievanceOfficer.email}`;
+  const showLegalName = hasText(siteConfig.legalName);
+  const emailHref = hasRealValue(siteConfig.contact.email)
+    ? `mailto:${siteConfig.contact.email}`
+    : undefined;
+  const grievanceEmailHref = hasRealValue(siteConfig.grievanceOfficer.email)
+    ? `mailto:${siteConfig.grievanceOfficer.email}`
+    : undefined;
 
   return (
     <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
@@ -36,11 +38,12 @@ export const PrivacyPolicyPage: React.FC = () => {
                 1. Who We Are
               </h2>
               <p>
-                {siteConfig.name} ({siteConfig.legalName}) operates an A2 milk and dairy delivery
-                subscription and one-time order service in {siteConfig.business.deliveryArea}. This
-                Privacy Policy explains in plain language what personal information we collect when
-                you use {siteConfig.url}, why we collect it, where it is stored, and how you can
-                access, correct, or delete it.
+                {siteConfig.name}
+                {showLegalName ? ` (${siteConfig.legalName})` : ''} operates an A2 milk and dairy
+                delivery subscription and one-time order service in{' '}
+                {siteConfig.business.deliveryArea}. This Privacy Policy explains in plain language
+                what personal information we collect when you use {siteConfig.url}, why we collect
+                it, where it is stored, and how you can access, correct, or delete it.
               </p>
             </section>
 
@@ -226,30 +229,38 @@ export const PrivacyPolicyPage: React.FC = () => {
                 requests:
               </p>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-xs sm:text-sm">
-                <div>
-                  <dt className="font-semibold text-[#263D30]">Name:</dt>
-                  <dd>{siteConfig.grievanceOfficer.name}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-[#263D30]">Email:</dt>
-                  <dd>
-                    {grievanceEmailHref ? (
-                      <a href={grievanceEmailHref} className="text-[#A34F37] underline">
-                        {siteConfig.grievanceOfficer.email}
-                      </a>
-                    ) : (
-                      siteConfig.grievanceOfficer.email
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-[#263D30]">Phone:</dt>
-                  <dd>{siteConfig.grievanceOfficer.phone}</dd>
-                </div>
-                <div>
-                  <dt className="font-semibold text-[#263D30]">Address:</dt>
-                  <dd>{siteConfig.grievanceOfficer.address}</dd>
-                </div>
+                {hasText(siteConfig.grievanceOfficer.name) && (
+                  <div>
+                    <dt className="font-semibold text-[#263D30]">Name:</dt>
+                    <dd>{siteConfig.grievanceOfficer.name}</dd>
+                  </div>
+                )}
+                {hasText(siteConfig.grievanceOfficer.email) && (
+                  <div>
+                    <dt className="font-semibold text-[#263D30]">Email:</dt>
+                    <dd>
+                      {grievanceEmailHref ? (
+                        <a href={grievanceEmailHref} className="text-[#A34F37] underline">
+                          {siteConfig.grievanceOfficer.email}
+                        </a>
+                      ) : (
+                        siteConfig.grievanceOfficer.email
+                      )}
+                    </dd>
+                  </div>
+                )}
+                {hasText(siteConfig.grievanceOfficer.phone) && (
+                  <div>
+                    <dt className="font-semibold text-[#263D30]">Phone:</dt>
+                    <dd>{siteConfig.grievanceOfficer.phone}</dd>
+                  </div>
+                )}
+                {hasText(siteConfig.grievanceOfficer.address) && (
+                  <div>
+                    <dt className="font-semibold text-[#263D30]">Address:</dt>
+                    <dd>{siteConfig.grievanceOfficer.address}</dd>
+                  </div>
+                )}
               </dl>
             </section>
 

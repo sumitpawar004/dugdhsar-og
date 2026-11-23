@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
 import { formatPaise, Order, Product } from '../../types';
+import { siteConfig } from '../../config/site';
+import { getFssaiRegNo, getGstin, hasGstin } from '../../config/siteHelpers';
 import { 
   BarChart3, 
   Package, 
@@ -314,14 +316,14 @@ export const AdminDashboardPage: React.FC = () => {
 
   // Settings State (Live sync with Store Context settings)
   const [dairySettings, setDairySettings] = useState({
-    fssaiLicense: siteSettings.fssaiNumber || '21426230002154',
-    gstin: siteSettings.gstin || '23AAAAA0000A1Z5',
-    morningCutoff: siteSettings.morningHours || '5:00 AM – 10:00 AM',
+    fssaiLicense: siteSettings.fssaiNumber || getFssaiRegNo(),
+    gstin: siteSettings.gstin || (hasGstin() ? getGstin() : ''),
+    morningCutoff: siteSettings.morningHours || siteConfig.business.morningHours,
     tempMinC: 2.0,
     tempMaxC: 4.0,
-    shopAddress: siteSettings.address || '3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni, Madhya Pradesh 480661',
-    whatsappSupport: siteSettings.whatsapp || '+91 7067672604',
-    supportEmail: siteSettings.email || 'support@dugdhsar.in'
+    shopAddress: siteSettings.address || siteConfig.location.fullAddress,
+    whatsappSupport: siteSettings.whatsapp || siteConfig.contact.whatsapp,
+    supportEmail: siteSettings.email || siteConfig.contact.email
   });
 
   // Preset Vedic dairy product imagery
@@ -551,7 +553,7 @@ export const AdminDashboardPage: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-[#F3EDE1]/70 mt-0.5">
-                Physical Shop: 3HP5+948, Barghat Rd, Seoni · Gaushala Hub: Sukla (MP 480771) · Audit Log Stream Active
+                Physical Shop: {siteConfig.location.city}, {siteConfig.location.state} ({siteConfig.location.latitude}, {siteConfig.location.longitude}) · Gaushala Farm Hub: Sukla (MP 480771) · Audit Log Stream Active
               </p>
             </div>
           </div>
@@ -2261,13 +2263,13 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="space-y-6">
                 <div>
                   <h2 className="font-serif text-xl text-white font-semibold">Dairy Operations Settings</h2>
-                  <p className="text-xs text-[#F3EDE1]/70">FSSAI food license, GSTIN, cold-chain parameters & dispatch cutoffs</p>
+                  <p className="text-xs text-[#F3EDE1]/70">FSSAI Reg. No., optional GSTIN, cold-chain parameters &amp; dispatch cutoffs</p>
                 </div>
 
                 <div className="p-6 bg-[#1F2F26] rounded-2xl border border-[#3A5243] space-y-4 text-xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-medium text-[#F3EDE1]/70 mb-1">FSSAI Central Dairy License</label>
+                      <label className="block text-[11px] font-medium text-[#F3EDE1]/70 mb-1">FSSAI Reg. No.</label>
                       <input
                         type="text"
                         value={dairySettings.fssaiLicense}
@@ -2277,10 +2279,11 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-medium text-[#F3EDE1]/70 mb-1">State GSTIN</label>
+                      <label className="block text-[11px] font-medium text-[#F3EDE1]/70 mb-1">GSTIN (Optional — leave blank if not registered)</label>
                       <input
                         type="text"
                         value={dairySettings.gstin}
+                        placeholder="Leave blank if not GST registered"
                         onChange={(e) => setDairySettings({ ...dairySettings, gstin: e.target.value })}
                         className="w-full p-2.5 bg-[#263D30] border border-[#3A5243] rounded-xl text-white font-mono"
                       />

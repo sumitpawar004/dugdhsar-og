@@ -1,4 +1,5 @@
 import { DeliverySlotCode, SubscriptionFrequency } from '../db/types';
+import { DELIVERY_CUTOFFS } from '../../src/config/deliveryCutoffs';
 
 const IST_OFFSET_MS = 330 * 60 * 1000; // UTC+05:30 (Asia/Kolkata, no DST)
 const YMD_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -143,27 +144,32 @@ export function checkIstCutoffForDate(
     return { allowed: false, reason: 'Cannot modify or skip a past delivery date.' };
   }
 
+  const morningCutoffMinutes =
+    DELIVERY_CUTOFFS.morning.cutoffHourIst * 60 + DELIVERY_CUTOFFS.morning.cutoffMinuteIst;
+  const eveningCutoffMinutes =
+    DELIVERY_CUTOFFS.evening.cutoffHourIst * 60 + DELIVERY_CUTOFFS.evening.cutoffMinuteIst;
+
   if (slot === 'morning') {
     if (targetYmd === todayYmd) {
       return {
         allowed: false,
-        reason: 'Morning delivery cut-off (9:00 PM IST previous night) has already passed for today.',
+        reason: `Morning delivery cut-off (${DELIVERY_CUTOFFS.morning.shortLabel}) has already passed for today.`,
       };
     }
-    if (targetYmd === tomorrowYmd && currentMinutes >= 21 * 60) {
+    if (targetYmd === tomorrowYmd && currentMinutes >= morningCutoffMinutes) {
       return {
         allowed: false,
-        reason: 'Cut-off passed: Morning slot changes for tomorrow must be made before 9:00 PM IST.',
+        reason: `Cut-off passed: Morning slot changes for tomorrow must be made before ${DELIVERY_CUTOFFS.morning.cutoffLabel}.`,
       };
     }
     return { allowed: true };
   }
 
-  // Evening slot: cut-off 4:00 PM IST same day
-  if (targetYmd === todayYmd && currentMinutes >= 16 * 60) {
+  // Evening slot: cut-off from DELIVERY_CUTOFFS (16:00 IST same day)
+  if (targetYmd === todayYmd && currentMinutes >= eveningCutoffMinutes) {
     return {
       allowed: false,
-      reason: 'Cut-off passed: Evening slot changes for today must be made before 4:00 PM IST.',
+      reason: `Cut-off passed: Evening slot changes for today must be made before ${DELIVERY_CUTOFFS.evening.cutoffLabel}.`,
     };
   }
 

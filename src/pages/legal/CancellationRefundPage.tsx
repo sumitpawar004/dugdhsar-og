@@ -1,5 +1,7 @@
 import React from 'react';
-import { siteConfig, isPlaceholderValue } from '../../config/site';
+import { siteConfig } from '../../config/site';
+import { DELIVERY_CUTOFFS } from '../../config/deliveryCutoffs';
+import { hasRealValue, hasText } from '../../config/siteHelpers';
 import { usePageSEO } from '../../lib/seo';
 
 export const CancellationRefundPage: React.FC = () => {
@@ -9,9 +11,13 @@ export const CancellationRefundPage: React.FC = () => {
     canonical: `${siteConfig.url}/cancellation-refund`,
   });
 
-  const emailHref = isPlaceholderValue(siteConfig.contact.email)
-    ? undefined
-    : `mailto:${siteConfig.contact.email}`;
+  const showLegalName = hasText(siteConfig.legalName);
+  const showAddress = hasText(siteConfig.location.fullAddress);
+  const showPhone = hasText(siteConfig.contact.phoneFormatted);
+  const showEmail = hasText(siteConfig.contact.email);
+  const emailHref = hasRealValue(siteConfig.contact.email)
+    ? `mailto:${siteConfig.contact.email}`
+    : undefined;
 
   return (
     <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
@@ -24,7 +30,8 @@ export const CancellationRefundPage: React.FC = () => {
             Cancellation &amp; Refund Policy
           </h1>
           <p className="text-xs text-[#302C26]/70 mb-8">
-            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name} ({siteConfig.legalName})
+            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name}
+            {showLegalName ? ` (${siteConfig.legalName})` : ''}
           </p>
 
           <div className="space-y-7 text-sm text-[#302C26]/90 leading-relaxed">
@@ -34,10 +41,13 @@ export const CancellationRefundPage: React.FC = () => {
               </h2>
               <p>
                 You can skip a specific delivery date, pause your subscription temporarily, or
-                cancel your subscription from your customer account at any time. To avoid dispatch
-                for the next day&apos;s delivery, please submit your skip, pause, or cancellation
-                before <strong>{siteConfig.business.cutoffTime}</strong>. Requests made after{' '}
-                {siteConfig.business.cutoffTime} take effect from the next eligible delivery date.
+                cancel your subscription from your customer account at any time. To avoid dispatch,
+                please submit your skip, pause, or cancellation before{' '}
+                <strong>{DELIVERY_CUTOFFS.morning.cutoffLabel}</strong> ({DELIVERY_CUTOFFS.morning.cutoffIst24h} IST) for
+                morning deliveries, or before{' '}
+                <strong>{DELIVERY_CUTOFFS.evening.cutoffLabel}</strong> ({DELIVERY_CUTOFFS.evening.cutoffIst24h} IST) for
+                evening deliveries. Requests made after the slot cut-off take effect from the next
+                eligible delivery date.
               </p>
             </section>
 
@@ -61,16 +71,26 @@ export const CancellationRefundPage: React.FC = () => {
                 returns of opened or accepted perishable items for food safety reasons. However, if
                 your delivery arrives damaged, broken, spoiled, or with a missing or wrong item,
                 please report the issue promptly on the same day with your order number (and a photo
-                if applicable) by contacting us at{' '}
-                {emailHref ? (
-                  <a href={emailHref} className="text-[#A34F37] underline font-medium">
-                    {siteConfig.contact.email}
-                  </a>
-                ) : (
-                  <strong className="text-[#263D30]">{siteConfig.contact.email}</strong>
-                )}{' '}
-                or <strong>{siteConfig.contact.phoneFormatted}</strong>. Verified claims are
-                eligible for a replacement delivery or a refund for the affected item.
+                if applicable)
+                {showEmail || showPhone ? (
+                  <>
+                    {' '}
+                    by contacting us at{' '}
+                    {showEmail && (
+                      emailHref ? (
+                        <a href={emailHref} className="text-[#A34F37] underline font-medium">
+                          {siteConfig.contact.email}
+                        </a>
+                      ) : (
+                        <strong className="text-[#263D30]">{siteConfig.contact.email}</strong>
+                      )
+                    )}
+                    {showEmail && showPhone ? ' or ' : ''}
+                    {showPhone && <strong>{siteConfig.contact.phoneFormatted}</strong>}
+                  </>
+                ) : null}
+                . Verified claims are eligible for a replacement delivery or a refund for the
+                affected item.
               </p>
             </section>
 
@@ -98,15 +118,22 @@ export const CancellationRefundPage: React.FC = () => {
                 5. Contact for Cancellations &amp; Refunds
               </h2>
               <p className="text-xs sm:text-sm">
-                <strong>{siteConfig.name}</strong> · {siteConfig.location.fullAddress}
-                <br />
-                Phone: {siteConfig.contact.phoneFormatted} · Email:{' '}
-                {emailHref ? (
-                  <a href={emailHref} className="text-[#A34F37] underline">
-                    {siteConfig.contact.email}
-                  </a>
-                ) : (
-                  siteConfig.contact.email
+                <strong>{siteConfig.name}</strong>
+                {showAddress ? ` · ${siteConfig.location.fullAddress}` : ''}
+                {(showPhone || showEmail) && <br />}
+                {showPhone && <>Phone: {siteConfig.contact.phoneFormatted}</>}
+                {showPhone && showEmail ? ' · ' : ''}
+                {showEmail && (
+                  <>
+                    Email:{' '}
+                    {emailHref ? (
+                      <a href={emailHref} className="text-[#A34F37] underline">
+                        {siteConfig.contact.email}
+                      </a>
+                    ) : (
+                      siteConfig.contact.email
+                    )}
+                  </>
                 )}
               </p>
             </section>

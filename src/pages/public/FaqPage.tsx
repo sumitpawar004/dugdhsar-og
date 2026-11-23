@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from '../../router/RouterContext';
-import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { DELIVERY_CUTOFFS } from '../../config/deliveryCutoffs';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FaqItem {
   q: string;
@@ -37,7 +38,7 @@ export const FaqPage: React.FC = () => {
     {
       cat: 'subscription',
       q: 'Can I pause or modify my delivery schedule when I travel?',
-      a: 'Yes, with complete ease. Through your Customer Account Portal (/account), you can pause deliveries, change quantities, or switch frequencies (Daily, Alternate Days, Weekdays only) anytime before the 8:00 PM cutoff for the next morning.'
+      a: `Yes, with complete ease. Through your Customer Account Portal (/account), you can pause deliveries, skip dates, change quantities, or switch frequencies (Daily, Alternate Days, Weekdays only) anytime before ${DELIVERY_CUTOFFS.summaryText}.`
     },
     {
       cat: 'ghee',

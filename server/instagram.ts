@@ -109,7 +109,7 @@ export const DUGDHSAR_DEFAULT_FEED: InstagramFeedResponse = {
     {
       id: 'ig-182947291034',
       caption:
-        'Visit our flagship physical retail counter at 3HP5+948, Barghat Rd, Sanjay Vihar Colony, Sufi Nagar, Seoni! Daily 5-10 AM & 6-10 PM. 📍🥛 #SeoniDairy',
+        'Visit our flagship physical retail counter opposite Durga Mandir, Barghat Road, Seoni! Daily 5-10 AM & 6-10 PM. 📍🥛 #SeoniDairy',
       media_type: 'IMAGE',
       media_url: '/assets/vedic_gir_cow_meadow.jpg',
       thumbnail_url: '/assets/vedic_gir_cow_meadow.jpg',

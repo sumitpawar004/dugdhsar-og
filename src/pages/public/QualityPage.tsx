@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../../context/StoreContext';
 import { useRouter } from '../../router/RouterContext';
+import { getFssaiRegNo, hasText } from '../../config/siteHelpers';
 import { ShieldCheck, CheckCircle2, FileText, Activity, AlertCircle, Download, Thermometer } from 'lucide-react';
 
 export const QualityPage: React.FC = () => {
@@ -9,6 +10,7 @@ export const QualityPage: React.FC = () => {
   const [searchedBatch, setSearchedBatch] = useState(currentBatch.batchNumber);
   const [isSearching, setIsSearching] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const fssaiRegNo = getFssaiRegNo();
 
   const adulterantTests = [
     { name: 'Urea (Synthetic Nitrogen)', standard: 'Negative', result: '100% Negative (0.00 ppm)' },
@@ -175,35 +177,37 @@ export const QualityPage: React.FC = () => {
           )}
 
           {/* Official FSSAI Registration Certificate Strip */}
-          <div className="mt-6 p-4 sm:p-5 rounded-xl bg-[#F8F4EC] border border-[#D8C9AD] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <img
-                src="/assets/aistudio/image_7a8553d9.png"
-                alt="FSSAI Registration Logo"
-                className="h-10 w-auto object-contain bg-white rounded-lg p-1.5 border border-[#D8C9AD] shrink-0"
-              />
-              <div className="text-xs space-y-0.5">
-                <p className="font-bold text-[#263D30] uppercase tracking-wider text-[10px]">
-                  Food Safety &amp; Standards Authority of India · Seoni, MP
-                </p>
-                <p className="font-mono font-bold text-[#263D30] text-sm">
-                  FSSAI Reg. No: 21426230002154
-                </p>
-                <p className="text-[11px] text-[#302C26]/75">
-                  Food Safety Assayed · Pure A2 Dairy · Issued: 12-11-2026 · Valid Upto: 11-11-2031
-                </p>
+          {hasText(fssaiRegNo) && (
+            <div className="mt-6 p-4 sm:p-5 rounded-xl bg-[#F8F4EC] border border-[#D8C9AD] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <img
+                  src="/assets/aistudio/image_7a8553d9.png"
+                  alt="FSSAI Registration Logo"
+                  className="h-10 w-auto object-contain bg-white rounded-lg p-1.5 border border-[#D8C9AD] shrink-0"
+                />
+                <div className="text-xs space-y-0.5">
+                  <p className="font-bold text-[#263D30] uppercase tracking-wider text-[10px]">
+                    Food Safety &amp; Standards Authority of India · Seoni, MP
+                  </p>
+                  <p className="font-mono font-bold text-[#263D30] text-sm">
+                    FSSAI Reg. No.: {fssaiRegNo}
+                  </p>
+                  <p className="text-[11px] text-[#302C26]/75">
+                    Food Safety Assayed · Pure A2 Dairy · Issued: 12-11-2026 · Valid Upto: 11-11-2031
+                  </p>
+                </div>
               </div>
+              <a
+                href="/assets/aistudio/certificate-127945312_copy_464ac32d.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>View FSSAI Certificate PDF</span>
+              </a>
             </div>
-            <a
-              href="/assets/aistudio/certificate-127945312_copy_464ac32d.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-[#263D30] hover:bg-[#1A2B22] text-[#FAF6EE] rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors shrink-0"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>View FSSAI Certificate PDF</span>
-            </a>
-          </div>
+          )}
         </div>
       </section>
 

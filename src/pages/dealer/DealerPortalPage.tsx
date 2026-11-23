@@ -433,7 +433,7 @@ export const DealerPortalPage: React.FC = () => {
                 <div key={i} className="p-4 bg-[#1F2F26] rounded-xl border border-[#3A5243] flex items-center justify-between gap-4">
                   <div>
                     <strong className="text-xs font-bold text-white block">{doc.title}</strong>
-                    <span className="text-[10px] text-[#F3EDE1]/60">{doc.date} · {doc.size} · Digitally Signed (FSSAI/GSTIN Verified)</span>
+                    <span className="text-[10px] text-[#F3EDE1]/60">{doc.date} · {doc.size} · Digitally Signed (FSSAI Reg. Verified)</span>
                   </div>
                   <button
                     onClick={() => setOrderNotice(`Preparing ${doc.title} statement download...`)}

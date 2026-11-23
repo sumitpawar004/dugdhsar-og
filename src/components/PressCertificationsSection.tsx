@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Award, ChevronLeft, ChevronRight, ShieldCheck, FileCheck, CheckCircle2 } from 'lucide-react';
+import { Award, ChevronLeft, ChevronRight, ShieldCheck, FileCheck } from 'lucide-react';
+import { getFssaiRegNo, hasText } from '../config/siteHelpers';
 
 interface Certification {
   id: string;
@@ -13,15 +14,22 @@ interface Certification {
 export const PressCertificationsSection: React.FC = () => {
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const fssaiRegNo = getFssaiRegNo();
+
   const certifications: Certification[] = [
-    {
-      id: 'fssai',
-      badge: 'Statutory Safety · Seoni, MP',
-      title: 'FSSAI REGISTERED STATE-OF-THE-ART PROCESSING',
-      authority: 'Food Safety and Standards Authority of India',
-      details: 'Officially registered under the FSS Act, 2006 for Dairy Products & Analogues (Wholesaler & Retailer, Valid Upto 11-11-2031). Food Safety Assayed · Pure A2 Dairy.',
-      regNumber: 'FSSAI Reg. No: 21426230002154'
-    },
+    ...(hasText(fssaiRegNo)
+      ? [
+          {
+            id: 'fssai',
+            badge: 'Statutory Safety · Seoni, MP',
+            title: 'FSSAI REGISTERED STATE-OF-THE-ART PROCESSING',
+            authority: 'Food Safety and Standards Authority of India',
+            details:
+              'Officially registered under the FSS Act, 2006 for Dairy Products & Analogues (Wholesaler & Retailer, Valid Upto 11-11-2031). Food Safety Assayed · Pure A2 Dairy.',
+            regNumber: `FSSAI Reg. No.: ${fssaiRegNo}`,
+          },
+        ]
+      : []),
     {
       id: 'purity-assay',
       badge: 'Zero Adulteration',

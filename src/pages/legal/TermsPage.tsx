@@ -1,5 +1,13 @@
 import React from 'react';
-import { siteConfig, isPlaceholderValue } from '../../config/site';
+import { siteConfig } from '../../config/site';
+import { DELIVERY_CUTOFFS } from '../../config/deliveryCutoffs';
+import {
+  getFssaiRegNo,
+  getGstin,
+  hasGstin,
+  hasRealValue,
+  hasText,
+} from '../../config/siteHelpers';
 import { usePageSEO } from '../../lib/seo';
 
 export const TermsPage: React.FC = () => {
@@ -9,9 +17,16 @@ export const TermsPage: React.FC = () => {
     canonical: `${siteConfig.url}/terms-and-conditions`,
   });
 
-  const emailHref = isPlaceholderValue(siteConfig.contact.email)
-    ? undefined
-    : `mailto:${siteConfig.contact.email}`;
+  const showLegalName = hasText(siteConfig.legalName);
+  const showAddress = hasText(siteConfig.location.fullAddress);
+  const showPhone = hasText(siteConfig.contact.phoneFormatted);
+  const showEmail = hasText(siteConfig.contact.email);
+  const emailHref = hasRealValue(siteConfig.contact.email)
+    ? `mailto:${siteConfig.contact.email}`
+    : undefined;
+  const fssaiRegNo = getFssaiRegNo();
+  const showGstin = hasGstin();
+  const gstinValue = getGstin();
 
   return (
     <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
@@ -24,7 +39,8 @@ export const TermsPage: React.FC = () => {
             Terms &amp; Conditions
           </h1>
           <p className="text-xs text-[#302C26]/70 mb-8">
-            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name} ({siteConfig.legalName})
+            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name}
+            {showLegalName ? ` (${siteConfig.legalName})` : ''}
           </p>
 
           <div className="space-y-7 text-sm text-[#302C26]/90 leading-relaxed">
@@ -35,7 +51,8 @@ export const TermsPage: React.FC = () => {
               <p>
                 These Terms &amp; Conditions govern your access to {siteConfig.url} and your
                 purchase of A2 milk and dairy products (through one-time orders or recurring
-                delivery subscriptions) from {siteConfig.name} ({siteConfig.legalName}) in{' '}
+                delivery subscriptions) from {siteConfig.name}
+                {showLegalName ? ` (${siteConfig.legalName})` : ''} in{' '}
                 {siteConfig.business.deliveryArea}. By placing an order or starting a subscription,
                 you agree to these terms.
               </p>
@@ -67,10 +84,13 @@ export const TermsPage: React.FC = () => {
                   deliveries from your account.
                 </li>
                 <li>
-                  <strong>Cut-off time:</strong> Changes, pauses, skips, or cancellations for the
-                  next day&apos;s delivery must be submitted before{' '}
-                  <strong>{siteConfig.business.cutoffTime}</strong>. Requests submitted after the
-                  cut-off apply from the following delivery cycle.
+                  <strong>Order &amp; skip cut-off times:</strong> Changes, pauses, skips, or
+                  cancellations must be submitted before{' '}
+                  <strong>{DELIVERY_CUTOFFS.morning.cutoffLabel}</strong> ({DELIVERY_CUTOFFS.morning.cutoffIst24h} IST) for
+                  morning deliveries ({DELIVERY_CUTOFFS.morning.windowLabel}), and before{' '}
+                  <strong>{DELIVERY_CUTOFFS.evening.cutoffLabel}</strong> ({DELIVERY_CUTOFFS.evening.cutoffIst24h} IST) for
+                  evening deliveries ({DELIVERY_CUTOFFS.evening.windowLabel}). Requests submitted
+                  after the cut-off apply from the following delivery cycle.
                 </li>
               </ul>
             </section>
@@ -134,27 +154,41 @@ export const TermsPage: React.FC = () => {
               </h2>
               <ul className="space-y-1 text-xs sm:text-sm">
                 <li>
-                  <strong>Business Name:</strong> {siteConfig.name} ({siteConfig.legalName})
+                  <strong>Business Name:</strong> {siteConfig.name}
+                  {showLegalName ? ` (${siteConfig.legalName})` : ''}
                 </li>
-                <li>
-                  <strong>Address:</strong> {siteConfig.location.fullAddress}
-                </li>
-                <li>
-                  <strong>Phone:</strong> {siteConfig.contact.phoneFormatted}
-                </li>
-                <li>
-                  <strong>Email:</strong>{' '}
-                  {emailHref ? (
-                    <a href={emailHref} className="text-[#A34F37] underline">
-                      {siteConfig.contact.email}
-                    </a>
-                  ) : (
-                    siteConfig.contact.email
-                  )}
-                </li>
-                <li>
-                  <strong>FSSAI License Number:</strong> {siteConfig.business.fssaiLicense}
-                </li>
+                {showAddress && (
+                  <li>
+                    <strong>Address:</strong> {siteConfig.location.fullAddress}
+                  </li>
+                )}
+                {showPhone && (
+                  <li>
+                    <strong>Phone:</strong> {siteConfig.contact.phoneFormatted}
+                  </li>
+                )}
+                {showEmail && (
+                  <li>
+                    <strong>Email:</strong>{' '}
+                    {emailHref ? (
+                      <a href={emailHref} className="text-[#A34F37] underline">
+                        {siteConfig.contact.email}
+                      </a>
+                    ) : (
+                      siteConfig.contact.email
+                    )}
+                  </li>
+                )}
+                {hasText(fssaiRegNo) && (
+                  <li>
+                    <strong>FSSAI Reg. No.:</strong> {fssaiRegNo}
+                  </li>
+                )}
+                {showGstin && (
+                  <li>
+                    <strong>GSTIN:</strong> {gstinValue}
+                  </li>
+                )}
               </ul>
             </section>
 

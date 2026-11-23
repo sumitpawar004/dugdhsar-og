@@ -1,5 +1,11 @@
 import React, { useEffect } from 'react';
-import { siteConfig, isPlaceholderValue } from '../config/site';
+import { siteConfig } from '../config/site';
+import {
+  getGstin,
+  getShopMapsSearchUrl,
+  hasGstin,
+  hasRealValue,
+} from '../config/siteHelpers';
 import { RouteMeta, PUBLIC_ROUTES_META, staticContent } from '../content';
 
 /**
@@ -217,16 +223,19 @@ export function generateSchemaGraph(route: RouteMeta): object {
       caption: `${siteConfig.name} Logo`,
     },
     image: siteConfig.ogImage,
-    sameAs: [siteConfig.social.instagram],
+    ...(hasRealValue(siteConfig.social.instagram) ? { sameAs: [siteConfig.social.instagram] } : {}),
   };
-  if (!isPlaceholderValue(siteConfig.legalName)) {
-    orgNode.legalName = siteConfig.legalName;
+  if (hasRealValue(siteConfig.legalName)) {
+    orgNode.legalName = siteConfig.legalName.trim();
   }
-  if (!isPlaceholderValue(siteConfig.contact.email)) {
-    orgNode.email = siteConfig.contact.email;
+  if (hasRealValue(siteConfig.contact.email)) {
+    orgNode.email = siteConfig.contact.email.trim();
   }
-  if (!isPlaceholderValue(siteConfig.contact.phoneFormatted)) {
-    orgNode.telephone = siteConfig.contact.phoneFormatted;
+  if (hasRealValue(siteConfig.contact.phoneFormatted)) {
+    orgNode.telephone = siteConfig.contact.phoneFormatted.trim();
+  }
+  if (hasGstin()) {
+    orgNode.taxID = getGstin();
   }
   if (siteConfig.foundingYear) {
     orgNode.foundingDate = `${siteConfig.foundingYear}-01-01`;
@@ -240,11 +249,11 @@ export function generateSchemaGraph(route: RouteMeta): object {
     addressRegion: siteConfig.location.state,
     addressCountry: siteConfig.location.country,
   };
-  if (!isPlaceholderValue(siteConfig.location.street)) {
-    addressNode.streetAddress = siteConfig.location.street;
+  if (hasRealValue(siteConfig.location.street)) {
+    addressNode.streetAddress = siteConfig.location.street.trim();
   }
-  if (!isPlaceholderValue(siteConfig.location.postalCode)) {
-    addressNode.postalCode = siteConfig.location.postalCode;
+  if (hasRealValue(siteConfig.location.postalCode)) {
+    addressNode.postalCode = siteConfig.location.postalCode.trim();
   }
 
   const localBusinessNode: Record<string, unknown> = {
@@ -258,6 +267,12 @@ export function generateSchemaGraph(route: RouteMeta): object {
     currenciesAccepted: 'INR',
     paymentAccepted: 'Cash on Delivery, Razorpay (UPI, Cards, Net Banking)',
     address: addressNode,
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: siteConfig.location.latitude,
+      longitude: siteConfig.location.longitude,
+    },
+    hasMap: getShopMapsSearchUrl(),
     openingHoursSpecification: siteConfig.business.openingHoursSpecification.map((spec) => ({
       '@type': 'OpeningHoursSpecification',
       dayOfWeek: spec.dayOfWeek,
@@ -270,11 +285,14 @@ export function generateSchemaGraph(route: RouteMeta): object {
       postalCode: area.postalCode,
     })),
   };
-  if (!isPlaceholderValue(siteConfig.contact.phoneFormatted)) {
-    localBusinessNode.telephone = siteConfig.contact.phoneFormatted;
+  if (hasRealValue(siteConfig.contact.phoneFormatted)) {
+    localBusinessNode.telephone = siteConfig.contact.phoneFormatted.trim();
   }
-  if (!isPlaceholderValue(siteConfig.contact.email)) {
-    localBusinessNode.email = siteConfig.contact.email;
+  if (hasRealValue(siteConfig.contact.email)) {
+    localBusinessNode.email = siteConfig.contact.email.trim();
+  }
+  if (hasGstin()) {
+    localBusinessNode.taxID = getGstin();
   }
   graph.push(localBusinessNode);
 

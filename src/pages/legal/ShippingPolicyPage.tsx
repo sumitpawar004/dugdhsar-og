@@ -1,5 +1,7 @@
 import React from 'react';
-import { siteConfig, isPlaceholderValue } from '../../config/site';
+import { siteConfig } from '../../config/site';
+import { DELIVERY_CUTOFFS } from '../../config/deliveryCutoffs';
+import { hasRealValue, hasText } from '../../config/siteHelpers';
 import { usePageSEO } from '../../lib/seo';
 export { CancellationRefundPage } from './CancellationRefundPage';
 
@@ -10,9 +12,13 @@ export const ShippingPolicyPage: React.FC = () => {
     canonical: `${siteConfig.url}/shipping-policy`,
   });
 
-  const emailHref = isPlaceholderValue(siteConfig.contact.email)
-    ? undefined
-    : `mailto:${siteConfig.contact.email}`;
+  const showLegalName = hasText(siteConfig.legalName);
+  const showAddress = hasText(siteConfig.location.fullAddress);
+  const showPhone = hasText(siteConfig.contact.phoneFormatted);
+  const showEmail = hasText(siteConfig.contact.email);
+  const emailHref = hasRealValue(siteConfig.contact.email)
+    ? `mailto:${siteConfig.contact.email}`
+    : undefined;
 
   return (
     <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
@@ -25,7 +31,8 @@ export const ShippingPolicyPage: React.FC = () => {
             Shipping &amp; Delivery Policy
           </h1>
           <p className="text-xs text-[#302C26]/70 mb-8">
-            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name} ({siteConfig.legalName})
+            Last Updated: {siteConfig.legal.lastUpdated} · {siteConfig.name}
+            {showLegalName ? ` (${siteConfig.legalName})` : ''}
           </p>
 
           <div className="space-y-7 text-sm text-[#302C26]/90 leading-relaxed">
@@ -47,16 +54,18 @@ export const ShippingPolicyPage: React.FC = () => {
               </h2>
               <ul className="list-disc pl-5 space-y-1.5">
                 <li>
-                  <strong>Morning Delivery Window:</strong> {siteConfig.business.morningHours}
+                  <strong>Morning Delivery Window ({DELIVERY_CUTOFFS.morning.windowLabel}):</strong>{' '}
+                  Orders, skips, and pauses must be submitted before{' '}
+                  <strong>{DELIVERY_CUTOFFS.morning.cutoffLabel}</strong> ({DELIVERY_CUTOFFS.morning.cutoffIst24h} IST).
                 </li>
                 <li>
-                  <strong>Evening Delivery Window:</strong> {siteConfig.business.eveningHours}
+                  <strong>Evening Delivery Window ({DELIVERY_CUTOFFS.evening.windowLabel}):</strong>{' '}
+                  Orders, skips, and pauses must be submitted before{' '}
+                  <strong>{DELIVERY_CUTOFFS.evening.cutoffLabel}</strong> ({DELIVERY_CUTOFFS.evening.cutoffIst24h} IST).
                 </li>
                 <li>
-                  <strong>Next-Day Cut-Off Time:</strong> Orders and subscription changes placed
-                  before <strong>{siteConfig.business.cutoffTime}</strong> are scheduled for the
-                  next day&apos;s delivery slot. Orders placed after the cut-off are scheduled for
-                  the following delivery cycle.
+                  <strong>After Cut-Off:</strong> Requests placed after the slot cut-off are
+                  automatically scheduled for the next eligible delivery cycle.
                 </li>
               </ul>
             </section>
@@ -90,15 +99,22 @@ export const ShippingPolicyPage: React.FC = () => {
                 5. Delivery Support
               </h2>
               <p className="text-xs sm:text-sm">
-                <strong>{siteConfig.name}</strong> · {siteConfig.location.fullAddress}
-                <br />
-                Phone: {siteConfig.contact.phoneFormatted} · Email:{' '}
-                {emailHref ? (
-                  <a href={emailHref} className="text-[#A34F37] underline">
-                    {siteConfig.contact.email}
-                  </a>
-                ) : (
-                  siteConfig.contact.email
+                <strong>{siteConfig.name}</strong>
+                {showAddress ? ` · ${siteConfig.location.fullAddress}` : ''}
+                {(showPhone || showEmail) && <br />}
+                {showPhone && <>Phone: {siteConfig.contact.phoneFormatted}</>}
+                {showPhone && showEmail ? ' · ' : ''}
+                {showEmail && (
+                  <>
+                    Email:{' '}
+                    {emailHref ? (
+                      <a href={emailHref} className="text-[#A34F37] underline">
+                        {siteConfig.contact.email}
+                      </a>
+                    ) : (
+                      siteConfig.contact.email
+                    )}
+                  </>
                 )}
               </p>
             </section>
@@ -133,6 +149,9 @@ export const ReturnPolicyPage: React.FC = () => {
     canonical: `${siteConfig.url}/return-policy`,
   });
 
+  const showPhone = hasText(siteConfig.contact.phoneFormatted);
+  const showEmail = hasText(siteConfig.contact.email);
+
   return (
     <article className="bg-[#F8F4EC] text-[#302C26] min-h-screen py-14 sm:py-16">
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
@@ -155,9 +174,16 @@ export const ReturnPolicyPage: React.FC = () => {
               <p>
                 For food safety and hygiene reasons, fresh milk and perishable dairy products cannot
                 be physically returned once delivered and accepted. If an item arrives damaged,
-                leaking, spoiled, or incorrect, please report it on the same day to{' '}
-                <strong>{siteConfig.contact.email}</strong> or{' '}
-                <strong>{siteConfig.contact.phoneFormatted}</strong> for a replacement or refund.
+                leaking, spoiled, or incorrect, please report it on the same day
+                {showEmail || showPhone ? (
+                  <>
+                    {' '}
+                    to {showEmail && <strong>{siteConfig.contact.email}</strong>}
+                    {showEmail && showPhone ? ' or ' : ''}
+                    {showPhone && <strong>{siteConfig.contact.phoneFormatted}</strong>}
+                  </>
+                ) : null}{' '}
+                for a replacement or refund.
               </p>
             </section>
 

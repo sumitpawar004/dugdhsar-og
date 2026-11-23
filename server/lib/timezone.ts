@@ -6,7 +6,9 @@
  * - Safe UTF-8 normalization guarantees Hindi / Devanagari script integrity
  */
 
-export const TIMEZONE_IST = 'Asia/Kolkata';
+import { DELIVERY_CUTOFFS } from '../../src/config/deliveryCutoffs';
+
+export const TIMEZONE_IST = DELIVERY_CUTOFFS.timezone;
 export const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000; // +05:30
 
 /**
@@ -30,17 +32,18 @@ export interface IstDeliveryStatus {
   istHour: number;
   istMinute: number;
   isEligibleForNextMorning: boolean; // Cutoff: 21:00 (9:00 PM IST)
-  isEligibleForSameDayEvening: boolean; // Cutoff: 15:00 (3:00 PM IST)
+  isEligibleForSameDayEvening: boolean; // Cutoff: 16:00 (4:00 PM IST)
   nextEarliestSlot: 'morning' | 'evening';
   nextDeliveryDate: string; // YYYY-MM-DD
 }
 
 /**
  * Evaluates milk delivery cutoff rules according to Seoni cold-chain logistics
- * 
+ * (synced with `src/config/deliveryCutoffs.ts` and D1 `site_settings`):
+ *
  * Rules:
  * 1. Morning dispatch (05:00 - 10:00 AM): Order must be received before 21:00 (9:00 PM) previous night.
- * 2. Evening dispatch (18:00 - 22:00 PM): Order must be received before 15:00 (3:00 PM) same day.
+ * 2. Evening dispatch (18:00 - 22:00 PM): Order must be received before 16:00 (4:00 PM) same day.
  */
 export function evaluateDeliveryCutoff(currentTime: Date = new Date()): IstDeliveryStatus {
   const ist = getIstDate(currentTime);
@@ -55,21 +58,28 @@ export function evaluateDeliveryCutoff(currentTime: Date = new Date()): IstDeliv
   const seconds = ist.getSeconds();
   const istTimeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  const isEligibleForSameDayEvening = hours < 15 || (hours === 15 && minutes === 0);
-  const isEligibleForNextMorning = hours < 21 || (hours === 21 && minutes === 0);
+  const eveningHour = DELIVERY_CUTOFFS.evening.cutoffHourIst;
+  const eveningMinute = DELIVERY_CUTOFFS.evening.cutoffMinuteIst;
+  const morningHour = DELIVERY_CUTOFFS.morning.cutoffHourIst;
+  const morningMinute = DELIVERY_CUTOFFS.morning.cutoffMinuteIst;
+
+  const isEligibleForSameDayEvening =
+    hours < eveningHour || (hours === eveningHour && minutes <= eveningMinute);
+  const isEligibleForNextMorning =
+    hours < morningHour || (hours === morningHour && minutes <= morningMinute);
 
   let nextEarliestSlot: 'morning' | 'evening';
   let targetDate = new Date(ist);
 
   if (isEligibleForSameDayEvening) {
-    // Before 3 PM: Same day evening is earliest
+    // Before 4:00 PM IST: Same day evening is earliest
     nextEarliestSlot = 'evening';
   } else if (isEligibleForNextMorning) {
-    // Between 3 PM and 9 PM: Next morning is earliest
+    // Between 4:00 PM and 9:00 PM IST: Next morning is earliest
     nextEarliestSlot = 'morning';
     targetDate.setDate(targetDate.getDate() + 1);
   } else {
-    // After 9 PM: Next day evening is earliest
+    // After 9:00 PM IST: Next day evening is earliest
     nextEarliestSlot = 'evening';
     targetDate.setDate(targetDate.getDate() + 1);
   }
@@ -105,9 +115,13 @@ export function normalizeUtf8String(input: unknown): string {
 }
 
 /**
- * Returns true if current time is before the daily cut-off hour in IST (default: 20 = 8:00 PM IST)
+ * Returns true if current time is before the daily cut-off hour in IST
+ * (default: `DELIVERY_CUTOFFS.morning.cutoffHourIst` = 21 = 9:00 PM IST).
  */
-export function isWithinDeliveryCutoff(currentTime: Date = new Date(), cutoffHour = 20): boolean {
+export function isWithinDeliveryCutoff(
+  currentTime: Date = new Date(),
+  cutoffHour = DELIVERY_CUTOFFS.morning.cutoffHourIst
+): boolean {
   const ist = getIstDate(currentTime);
   return ist.getHours() < cutoffHour;
 }

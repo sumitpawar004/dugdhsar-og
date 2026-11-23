@@ -1,6 +1,15 @@
 import React from 'react';
 import { useRouter } from '../router/RouterContext';
-import { siteConfig, isPlaceholderValue } from '../config/site';
+import { siteConfig } from '../config/site';
+import {
+  getCleanTelHref,
+  getCleanWhatsappDigits,
+  getFssaiRegNo,
+  getGstin,
+  hasGstin,
+  hasRealValue,
+  hasText,
+} from '../config/siteHelpers';
 import { PhoneCall, MapPin, Mail, ShieldCheck } from 'lucide-react';
 
 export const FooterSection: React.FC = () => {
@@ -14,11 +23,16 @@ export const FooterSection: React.FC = () => {
     navigate(path);
   };
 
-  const phoneIsPlaceholder = isPlaceholderValue(siteConfig.contact.phone);
-  const emailIsPlaceholder = isPlaceholderValue(siteConfig.contact.email);
-  const whatsappIsPlaceholder = isPlaceholderValue(siteConfig.contact.whatsapp);
-  const cleanPhoneHref = siteConfig.contact.phone.replace(/[^+\d]/g, '');
-  const cleanWhatsappHref = siteConfig.contact.whatsapp.replace(/\D/g, '');
+  const showLegalName = hasText(siteConfig.legalName);
+  const showAddress = hasText(siteConfig.location.fullAddress);
+  const showPhone = hasText(siteConfig.contact.phoneFormatted);
+  const showEmail = hasText(siteConfig.contact.email);
+  const telHref = getCleanTelHref();
+  const emailIsReal = hasRealValue(siteConfig.contact.email);
+  const whatsappDigits = getCleanWhatsappDigits();
+  const fssaiRegNo = getFssaiRegNo();
+  const showGstin = hasGstin();
+  const gstinValue = getGstin();
   const currentYear = new Date().getFullYear();
 
   return (
@@ -31,50 +45,60 @@ export const FooterSection: React.FC = () => {
           {/* Column 1: Business Identity & Contact Details */}
           <div className="md:col-span-5 space-y-4">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-[#C2A36C]">
-                {siteConfig.tagline}
-              </p>
+              {hasText(siteConfig.tagline) && (
+                <p className="text-xs font-bold uppercase tracking-widest text-[#C2A36C]">
+                  {siteConfig.tagline}
+                </p>
+              )}
               <h2 className="text-lg font-serif font-bold text-white tracking-wide mt-1">
                 {siteConfig.name}
               </h2>
-              <p className="text-xs text-[#F3EDE1]/75 mt-0.5">
-                Legal Entity: {siteConfig.legalName}
-              </p>
+              {showLegalName && (
+                <p className="text-xs text-[#F3EDE1]/75 mt-0.5">
+                  Legal Entity: {siteConfig.legalName}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2 text-xs text-[#F3EDE1]/90">
-              <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-[#C2A36C] shrink-0 mt-0.5" />
-                <span>{siteConfig.location.fullAddress}</span>
-              </div>
+              {showAddress && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-[#C2A36C] shrink-0 mt-0.5" />
+                  <span>{siteConfig.location.fullAddress}</span>
+                </div>
+              )}
 
-              <div className="flex items-center gap-2 font-mono">
-                <PhoneCall className="w-4 h-4 text-[#C2A36C] shrink-0" />
-                {phoneIsPlaceholder ? (
-                  <span>{siteConfig.contact.phoneFormatted}</span>
-                ) : (
-                  <a
-                    href={`tel:${cleanPhoneHref}`}
-                    className="hover:text-[#C2A36C] transition-colors"
-                  >
-                    {siteConfig.contact.phoneFormatted}
-                  </a>
-                )}
-              </div>
+              {showPhone && (
+                <div className="flex items-center gap-2 font-mono">
+                  <PhoneCall className="w-4 h-4 text-[#C2A36C] shrink-0" />
+                  {telHref ? (
+                    <a
+                      href={`tel:${telHref}`}
+                      className="hover:text-[#C2A36C] transition-colors"
+                    >
+                      {siteConfig.contact.phoneFormatted}
+                    </a>
+                  ) : (
+                    <span>{siteConfig.contact.phoneFormatted}</span>
+                  )}
+                </div>
+              )}
 
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[#C2A36C] shrink-0" />
-                {emailIsPlaceholder ? (
-                  <span>{siteConfig.contact.email}</span>
-                ) : (
-                  <a
-                    href={`mailto:${siteConfig.contact.email}`}
-                    className="hover:text-[#C2A36C] transition-colors"
-                  >
-                    {siteConfig.contact.email}
-                  </a>
-                )}
-              </div>
+              {showEmail && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-[#C2A36C] shrink-0" />
+                  {emailIsReal ? (
+                    <a
+                      href={`mailto:${siteConfig.contact.email}`}
+                      className="hover:text-[#C2A36C] transition-colors"
+                    >
+                      {siteConfig.contact.email}
+                    </a>
+                  ) : (
+                    <span>{siteConfig.contact.email}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-[#F3EDE1]/75 leading-relaxed max-w-md">
@@ -89,12 +113,12 @@ export const FooterSection: React.FC = () => {
                 onClick={handleLinkClick('/store-locator')}
                 className="text-[#C2A36C] hover:underline"
               >
-                Delivery Zones & Store Info →
+                Delivery Zones &amp; Store Info →
               </a>
 
-              {!whatsappIsPlaceholder && (
+              {whatsappDigits && (
                 <a
-                  href={`https://wa.me/${cleanWhatsappHref}`}
+                  href={`https://wa.me/${whatsappDigits}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-emerald-300 hover:underline"
@@ -107,15 +131,24 @@ export const FooterSection: React.FC = () => {
 
           {/* Column 2: FSSAI Registration & Quick Navigation */}
           <div className="md:col-span-3 space-y-4 text-xs text-[#F3EDE1]/85">
-            <div className="p-3 rounded-xl bg-[#1F2F26] border border-[#3A5243] space-y-1.5">
-              <div className="flex items-center gap-2 text-[#C2A36C] font-semibold">
-                <ShieldCheck className="w-4 h-4 shrink-0" />
-                <span>Food Safety Registration</span>
+            {(hasText(fssaiRegNo) || showGstin) && (
+              <div className="p-3 rounded-xl bg-[#1F2F26] border border-[#3A5243] space-y-1.5">
+                <div className="flex items-center gap-2 text-[#C2A36C] font-semibold">
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  <span>Food Safety Registration</span>
+                </div>
+                {hasText(fssaiRegNo) && (
+                  <p className="text-[11px] font-mono text-[#FAF6EE]">
+                    FSSAI Reg. No.: {fssaiRegNo}
+                  </p>
+                )}
+                {showGstin && (
+                  <p className="text-[11px] font-mono text-[#FAF6EE]/85">
+                    GSTIN: {gstinValue}
+                  </p>
+                )}
               </div>
-              <p className="text-[11px] font-mono text-[#FAF6EE]">
-                FSSAI License No.: {siteConfig.business.fssaiLicense}
-              </p>
-            </div>
+            )}
 
             <nav aria-label="Quick links" className="flex flex-col space-y-1.5 font-medium">
               <p className="text-[11px] font-bold uppercase tracking-wider text-[#C2A36C] mb-1">
@@ -133,7 +166,7 @@ export const FooterSection: React.FC = () => {
                 onClick={handleLinkClick('/products')}
                 className="hover:text-[#C2A36C] transition-colors"
               >
-                Products & Subscriptions
+                Products &amp; Subscriptions
               </a>
               <a
                 href="/faq"
@@ -159,7 +192,7 @@ export const FooterSection: React.FC = () => {
               className="flex flex-col md:text-right space-y-2 text-xs font-semibold text-[#F3EDE1]/90"
             >
               <p className="text-[11px] font-bold uppercase tracking-wider text-[#C2A36C] mb-0.5">
-                Policies & Legal
+                Policies &amp; Legal
               </p>
               <a
                 href="/privacy-policy"
@@ -173,21 +206,21 @@ export const FooterSection: React.FC = () => {
                 onClick={handleLinkClick('/terms-and-conditions')}
                 className="hover:text-[#C2A36C] transition-colors"
               >
-                Terms & Conditions
+                Terms &amp; Conditions
               </a>
               <a
                 href="/cancellation-refund"
                 onClick={handleLinkClick('/cancellation-refund')}
                 className="hover:text-[#C2A36C] transition-colors"
               >
-                Cancellation & Refund Policy
+                Cancellation &amp; Refund Policy
               </a>
               <a
                 href="/shipping-policy"
                 onClick={handleLinkClick('/shipping-policy')}
                 className="hover:text-[#C2A36C] transition-colors"
               >
-                Shipping & Delivery Policy
+                Shipping &amp; Delivery Policy
               </a>
               <a
                 href="/return-policy"
@@ -217,7 +250,7 @@ export const FooterSection: React.FC = () => {
             <div className="flex items-center space-x-2 pt-2">
               <div className="text-right">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-[#C2A36C] block">
-                  Seoni, Madhya Pradesh
+                  {siteConfig.location.city}, {siteConfig.location.state}
                 </span>
                 <span className="text-sm font-serif font-bold text-white tracking-wider block">
                   {siteConfig.name}
@@ -237,7 +270,8 @@ export const FooterSection: React.FC = () => {
         {/* Bottom Legal Bar */}
         <div className="pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-[#F3EDE1]/65">
           <p>
-            © {currentYear} {siteConfig.name} ({siteConfig.legalName}). All rights reserved.
+            © {currentYear} {siteConfig.name}
+            {showLegalName ? ` (${siteConfig.legalName})` : ''}. All rights reserved.
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <a
@@ -252,14 +286,14 @@ export const FooterSection: React.FC = () => {
               onClick={handleLinkClick('/terms-and-conditions')}
               className="hover:text-[#C2A36C] underline"
             >
-              Terms & Conditions
+              Terms &amp; Conditions
             </a>
             <a
               href="/cancellation-refund"
               onClick={handleLinkClick('/cancellation-refund')}
               className="hover:text-[#C2A36C] underline"
             >
-              Cancellation & Refund
+              Cancellation &amp; Refund
             </a>
             <a
               href="/shipping-policy"
